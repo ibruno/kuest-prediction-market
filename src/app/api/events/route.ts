@@ -11,6 +11,9 @@ export async function GET(request: Request) {
   const bookmarked = searchParams.get('bookmarked') === 'true'
   const frequency = searchParams.get('frequency') || 'all'
   const status = searchParams.get('status') || 'active'
+  const sportsSportSlug = searchParams.get('sportsSportSlug') || ''
+  const sportsSectionParam = searchParams.get('sportsSection') || ''
+  const sportsSection = sportsSectionParam.trim().toLowerCase()
   const localeParam = searchParams.get('locale') ?? DEFAULT_LOCALE
   const locale = SUPPORTED_LOCALES.includes(localeParam as typeof SUPPORTED_LOCALES[number])
     ? localeParam as typeof SUPPORTED_LOCALES[number]
@@ -26,6 +29,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invalid frequency filter.' }, { status: 400 })
   }
 
+  if (sportsSection && sportsSection !== 'games' && sportsSection !== 'props') {
+    return NextResponse.json({ error: 'Invalid sports section filter.' }, { status: 400 })
+  }
+
   const user = await UserRepository.getCurrentUser()
   const userId = user?.id
 
@@ -39,6 +46,8 @@ export async function GET(request: Request) {
       status,
       offset: clampedOffset,
       locale,
+      sportsSportSlug,
+      sportsSection: (sportsSection === 'games' || sportsSection === 'props') ? sportsSection : '',
     })
 
     if (error) {

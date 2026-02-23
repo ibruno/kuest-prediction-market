@@ -1,8 +1,8 @@
 import type { SupportedLocale } from '@/i18n/locales'
 import type { conditions } from '@/lib/db/schema/events/tables'
 import type { ConditionChangeLogEntry, Event, EventLiveChartConfig, EventSeriesEntry, QueryResult } from '@/types'
-import { and, desc, eq, exists, ilike, inArray, or, sql } from 'drizzle-orm'
-import { cacheTag } from 'next/cache'
+import { and, desc, eq, exists, gt, ilike, inArray, or, sql } from 'drizzle-orm'
+import { cacheTag, unstable_cache } from 'next/cache'
 import { DEFAULT_LOCALE } from '@/i18n/locales'
 import { cacheTags } from '@/lib/cache-tags'
 import { OUTCOME_INDEX } from '@/lib/constants'
@@ -10,6 +10,7 @@ import { bookmarks } from '@/lib/db/schema/bookmarks/tables'
 import {
   conditions_audit,
   event_live_chart_configs,
+  event_sports,
   event_tags,
   event_translations,
   events,
@@ -261,6 +262,8 @@ interface ListEventsProps {
   status?: Event['status']
   offset?: number
   locale?: SupportedLocale
+  sportsSportSlug?: string
+  sportsSection?: 'games' | 'props' | ''
 }
 
 interface RelatedEventOptions {
@@ -288,6 +291,7 @@ type DrizzleEventResult = typeof events.$inferSelect & {
       outcomes: typeof outcomes.$inferSelect[]
     }
   })[]
+  sports?: typeof event_sports.$inferSelect | null
   eventTags: (typeof event_tags.$inferSelect & {
     tag: typeof tags.$inferSelect
   })[]
@@ -302,6 +306,31 @@ interface RelatedEvent {
   common_tags_count: number
   chance: number | null
 }
+
+const getCachedActiveSportsCountsBySlug = unstable_cache(
+  async () => {
+    const rows = await db
+      .select({
+        slug: event_sports.sports_sport_slug,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(event_sports)
+      .innerJoin(events, eq(event_sports.event_id, events.id))
+      .where(and(
+        eq(events.status, 'active'),
+        gt(events.active_markets_count, 0),
+        sql`TRIM(COALESCE(${event_sports.sports_sport_slug}, '')) <> ''`,
+      ))
+      .groupBy(event_sports.sports_sport_slug)
+
+    return rows
+  },
+  ['events-active-sports-counts-by-slug-v1'],
+  {
+    revalidate: 1800,
+    tags: [cacheTags.eventsGlobal],
+  },
+)
 
 async function getLocalizedTagNamesById(tagIds: number[], locale: SupportedLocale): Promise<Map<number, string>> {
   if (!tagIds.length || locale === DEFAULT_LOCALE) {
@@ -489,6 +518,8 @@ function eventResource(
     rules: event.rules || undefined,
     series_slug: event.series_slug ?? null,
     series_recurrence: event.series_recurrence ?? null,
+    sports_event_slug: event.sports?.sports_event_slug ?? null,
+    sports_sport_slug: event.sports?.sports_sport_slug ?? null,
     has_live_chart: hasLiveChart,
     active_markets_count: Number(event.active_markets_count || 0),
     total_markets_count: Number(event.total_markets_count || 0),
@@ -554,6 +585,32 @@ function getEventMainTag(tags: any[] | undefined): string {
 }
 
 export const EventRepository = {
+  async getActiveSportsCountsBySlug(): Promise<QueryResult<Record<string, number>>> {
+    'use cache'
+    cacheTag(cacheTags.eventsGlobal)
+
+    return runQuery(async () => {
+      const rows = await getCachedActiveSportsCountsBySlug()
+      const countsBySlug: Record<string, number> = {}
+
+      for (const row of rows) {
+        const normalizedSlug = row.slug?.trim().toLowerCase()
+        if (!normalizedSlug) {
+          continue
+        }
+
+        const countValue = Number(row.count ?? 0)
+        if (!Number.isFinite(countValue) || countValue <= 0) {
+          continue
+        }
+
+        countsBySlug[normalizedSlug] = countValue
+      }
+
+      return { data: countsBySlug, error: null }
+    })
+  },
+
   async listEvents({
     tag = 'trending',
     search = '',
@@ -563,6 +620,8 @@ export const EventRepository = {
     status = 'active',
     offset = 0,
     locale = DEFAULT_LOCALE,
+    sportsSportSlug = '',
+    sportsSection = '',
   }: ListEventsProps): Promise<QueryResult<Event[]>> {
     'use cache'
     cacheTag(cacheTags.events(userId || 'guest'))
@@ -614,6 +673,41 @@ export const EventRepository = {
       if (frequency !== 'all') {
         const normalizedSeriesRecurrence = sql<string>`LOWER(TRIM(COALESCE(${events.series_recurrence}, '')))`
         whereConditions.push(eq(normalizedSeriesRecurrence, frequency))
+      }
+
+      const normalizedSportsSportSlug = sportsSportSlug.trim().toLowerCase()
+      if (normalizedSportsSportSlug) {
+        const normalizedSportsSportSlugColumn = sql<string>`
+          LOWER(TRIM(COALESCE(${event_sports.sports_sport_slug}, '')))
+        `
+        whereConditions.push(
+          exists(
+            db.select({ event_id: event_sports.event_id })
+              .from(event_sports)
+              .where(and(
+                eq(event_sports.event_id, events.id),
+                eq(normalizedSportsSportSlugColumn, normalizedSportsSportSlug),
+              )),
+          ),
+        )
+      }
+
+      const normalizedSportsSection = sportsSection.trim().toLowerCase()
+      if (normalizedSportsSection === 'games' || normalizedSportsSection === 'props') {
+        const sectionTagSlugs = normalizedSportsSection === 'games'
+          ? ['games', 'game']
+          : ['props', 'prop']
+        whereConditions.push(
+          exists(
+            db.select()
+              .from(event_tags)
+              .innerJoin(tags, eq(event_tags.tag_id, tags.id))
+              .where(and(
+                eq(event_tags.event_id, events.id),
+                inArray(tags.slug, sectionTagSlugs),
+              )),
+          ),
+        )
       }
 
       if (tag && tag !== 'trending' && tag !== 'new') {
@@ -718,6 +812,7 @@ export const EventRepository = {
             eventTags: {
               with: { tag: true },
             },
+            sports: true,
 
             ...(userId && {
               bookmarks: {
@@ -752,6 +847,7 @@ export const EventRepository = {
             eventTags: {
               with: { tag: true },
             },
+            sports: true,
 
             ...(userId && {
               bookmarks: {
@@ -816,6 +912,58 @@ export const EventRepository = {
       }
 
       return { data: result[0], error: null }
+    })
+  },
+
+  async getCanonicalEventSlugBySportsPath(
+    sportsSportSlug: string,
+    sportsEventSlug: string,
+  ): Promise<QueryResult<{ slug: string }>> {
+    return runQuery(async () => {
+      const normalizedSportsSportSlug = sportsSportSlug.trim().toLowerCase()
+      const normalizedSportsEventSlug = sportsEventSlug.trim().toLowerCase()
+
+      if (!normalizedSportsSportSlug || !normalizedSportsEventSlug) {
+        throw new Error('Event not found')
+      }
+
+      const normalizedSportsSportSlugColumn = sql<string>`
+        LOWER(TRIM(COALESCE(${event_sports.sports_sport_slug}, '')))
+      `
+      const normalizedSportsEventSlugColumn = sql<string>`
+        LOWER(TRIM(COALESCE(${event_sports.sports_event_slug}, '')))
+      `
+
+      const result = await db
+        .select({ slug: events.slug })
+        .from(event_sports)
+        .innerJoin(events, eq(event_sports.event_id, events.id))
+        .where(and(
+          eq(normalizedSportsSportSlugColumn, normalizedSportsSportSlug),
+          eq(normalizedSportsEventSlugColumn, normalizedSportsEventSlug),
+        ))
+        .orderBy(desc(events.created_at))
+        .limit(1)
+
+      if (result.length > 0) {
+        return { data: result[0]!, error: null }
+      }
+
+      const fallbackResult = await db
+        .select({ slug: events.slug })
+        .from(event_sports)
+        .innerJoin(events, eq(event_sports.event_id, events.id))
+        .where(and(
+          eq(normalizedSportsSportSlugColumn, normalizedSportsSportSlug),
+          eq(events.slug, normalizedSportsEventSlug),
+        ))
+        .limit(1)
+
+      if (fallbackResult.length === 0) {
+        throw new Error('Event not found')
+      }
+
+      return { data: fallbackResult[0]!, error: null }
     })
   },
 
@@ -1021,6 +1169,7 @@ export const EventRepository = {
           eventTags: {
             with: { tag: true },
           },
+          sports: true,
           ...(userId && {
             bookmarks: {
               where: eq(bookmarks.user_id, userId),
