@@ -248,7 +248,17 @@ cd /opt/kuest/prediction-market
 docker compose --env-file .env -f infra/docker/docker-compose.production.yml --profile local-postgres up -d --build
 ```
 
-### 6) Validate
+### 6) Run database migrations (required)
+
+After containers are running, apply migrations:
+
+```bash
+docker compose --env-file .env -f infra/docker/docker-compose.production.yml exec web npm run db:push
+```
+
+If you are using `local-postgres`, wait until the `postgres` container is healthy before running `db:push`.
+
+### 7) Validate
 
 ```bash
 docker compose -f infra/docker/docker-compose.production.yml ps
@@ -298,6 +308,7 @@ Docker update:
 cd /opt/kuest/prediction-market
 git pull
 docker compose --env-file .env -f infra/docker/docker-compose.production.yml up -d --build
+docker compose --env-file .env -f infra/docker/docker-compose.production.yml exec web npm run db:push
 ```
 
 Docker update (with local Postgres profile):
@@ -306,6 +317,7 @@ Docker update (with local Postgres profile):
 cd /opt/kuest/prediction-market
 git pull
 docker compose --env-file .env -f infra/docker/docker-compose.production.yml --profile local-postgres up -d --build
+docker compose --env-file .env -f infra/docker/docker-compose.production.yml exec web npm run db:push
 ```
 
 ## Notes

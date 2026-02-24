@@ -58,6 +58,27 @@ If using production `local-postgres` profile:
 
 - `POSTGRES_PASSWORD` must be non-empty (container exits otherwise)
 
+## Database migrations (required)
+
+After `docker compose up`, run migrations to create/update database tables:
+
+Local compose:
+
+```bash
+docker compose --env-file .env -f infra/docker/docker-compose.yml exec web npm run db:push
+```
+
+Production compose:
+
+```bash
+docker compose --env-file .env -f infra/docker/docker-compose.production.yml exec web npm run db:push
+```
+
+Notes:
+
+- If you use `local-postgres`, wait until the `postgres` container is healthy before running `db:push`.
+- Re-run this migration command after pulling new releases.
+
 ## Operations
 
 ```bash
@@ -68,7 +89,13 @@ docker compose -f infra/docker/docker-compose.production.yml ps
 docker compose -f infra/docker/docker-compose.production.yml logs -f web
 docker compose -f infra/docker/docker-compose.production.yml logs -f caddy
 
-# update
+# update (Supabase mode)
 git pull
 docker compose --env-file .env -f infra/docker/docker-compose.production.yml up -d --build
+docker compose --env-file .env -f infra/docker/docker-compose.production.yml exec web npm run db:push
+
+# update (Postgres+S3 mode with local Postgres profile)
+git pull
+docker compose --env-file .env -f infra/docker/docker-compose.production.yml --profile local-postgres up -d --build
+docker compose --env-file .env -f infra/docker/docker-compose.production.yml exec web npm run db:push
 ```

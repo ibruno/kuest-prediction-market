@@ -324,7 +324,7 @@ async function run() {
     await sql`SELECT 1`
     console.log('Connected to database successfully')
 
-    console.log(`Migration mode: ${isSupabaseMode ? 'supabase' : 'postgres+s3 (no Supabase cron/storage dependencies)'}`)
+    console.log(`Migration mode: ${isSupabaseMode ? 'Supabase' : 'Postgres+S3'}`)
     await applyMigrations(sql, isSupabaseMode)
 
     if (isSupabaseMode) {
