@@ -438,7 +438,7 @@ function EventChartComponent({
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
-  const [nowMs, setNowMs] = useState(() => Date.now())
+  const [nowMs, setNowMs] = useState(0)
   const tradeFlowIdRef = useRef(0)
   const lastEventIdRef = useRef(event.id)
 
@@ -459,6 +459,8 @@ function EventChartComponent({
   }, [chartSettings, hasLoadedSettings])
 
   useEffect(() => {
+    setNowMs(Date.now())
+
     const interval = window.setInterval(() => {
       setNowMs(Date.now())
     }, 30_000)

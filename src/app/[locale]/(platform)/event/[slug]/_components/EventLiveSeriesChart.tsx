@@ -61,10 +61,10 @@ interface LiveSeriesPriceSnapshot {
   is_event_closed: boolean
 }
 
-function normalizeTimestamp(value: unknown) {
+function normalizeTimestamp(value: unknown, fallbackTimestamp = 0) {
   const numeric = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(numeric)) {
-    return Date.now()
+    return fallbackTimestamp
   }
   return numeric < 1e12 ? numeric * 1000 : numeric
 }
@@ -130,7 +130,11 @@ function matchesSymbol(symbol: string | null, targetSymbol: string) {
   return symbolsAreEquivalent(symbol, targetSymbol)
 }
 
-function extractPointsFromArray(entries: any[], fallbackSymbol: string | null = null) {
+function extractPointsFromArray(
+  entries: any[],
+  fallbackSymbol: string | null = null,
+  fallbackTimestamp = 0,
+) {
   if (!Array.isArray(entries) || entries.length === 0) {
     return []
   }
@@ -149,7 +153,7 @@ function extractPointsFromArray(entries: any[], fallbackSymbol: string | null = 
 
     const rawSymbol = point.symbol ?? point.pair ?? point.asset ?? point.base ?? fallbackSymbol
     const symbol = typeof rawSymbol === 'string' ? rawSymbol : null
-    const timestamp = normalizeTimestamp(point.timestamp ?? point.ts ?? point.t)
+    const timestamp = normalizeTimestamp(point.timestamp ?? point.ts ?? point.t, fallbackTimestamp)
 
     points.push({ price, timestamp, symbol })
   }
@@ -157,7 +161,7 @@ function extractPointsFromArray(entries: any[], fallbackSymbol: string | null = 
   return points
 }
 
-function extractLivePriceUpdates(payload: any, topic: string, symbol: string) {
+function extractLivePriceUpdates(payload: any, topic: string, symbol: string, fallbackTimestamp = 0) {
   if (!payload || typeof payload !== 'object') {
     return []
   }
@@ -205,11 +209,11 @@ function extractLivePriceUpdates(payload: any, topic: string, symbol: string) {
     const candidateSymbol = typeof rawSymbol === 'string' ? rawSymbol : null
 
     if (Array.isArray(candidate?.data)) {
-      updates.push(...extractPointsFromArray(candidate.data, candidateSymbol))
+      updates.push(...extractPointsFromArray(candidate.data, candidateSymbol, fallbackTimestamp))
     }
 
     if (Array.isArray(candidate?.payload?.data)) {
-      updates.push(...extractPointsFromArray(candidate.payload.data, candidateSymbol))
+      updates.push(...extractPointsFromArray(candidate.payload.data, candidateSymbol, fallbackTimestamp))
     }
 
     const rawPrice = candidate?.data?.price
@@ -234,6 +238,7 @@ function extractLivePriceUpdates(payload: any, topic: string, symbol: string) {
       ?? candidate?.data?.t
       ?? candidate?.t
       ?? candidate?.payload?.timestamp,
+      fallbackTimestamp,
     )
 
     updates.push({
@@ -458,12 +463,19 @@ function resolveEventEndTimestamp(event: Event) {
   const eventEnd = parseUtcDate(event.end_date)
   const marketEnd = parseUtcDate(event.markets[0]?.end_time)
 
-  if (eventEnd && marketEnd) {
-    // Prefer the latest known event cutoff when both are present.
+  if (eventEnd != null && marketEnd != null) {
     return Math.max(eventEnd, marketEnd)
   }
 
-  return eventEnd ?? marketEnd ?? Date.now()
+  if (eventEnd != null) {
+    return eventEnd
+  }
+
+  if (marketEnd != null) {
+    return marketEnd
+  }
+
+  return null
 }
 
 function inferIntervalMsFromSeriesSlug(seriesSlug: string | null | undefined) {
@@ -673,7 +685,7 @@ export default function EventLiveSeriesChart({
     () => normalizeSubscriptionSymbol(config.topic, config.symbol),
     [config.symbol, config.topic],
   )
-  const [nowMs, setNowMs] = useState(() => Date.now())
+  const [nowMs, setNowMs] = useState(0)
   const [data, setData] = useState<DataPoint[]>([])
   const [persistedFallbackPrice, setPersistedFallbackPrice] = useState<PersistedLivePrice | null>(null)
   const [baselinePrice, setBaselinePrice] = useState<number | null>(null)
@@ -682,8 +694,10 @@ export default function EventLiveSeriesChart({
   const [activeView, setActiveView] = useState<'live' | 'market'>('live')
   const isLiveView = activeView === 'live'
   const startTimestamp = useMemo(() => parseUtcDate(event.start_date ?? null), [event.start_date])
-  const endTimestamp = useMemo(() => resolveEventEndTimestamp(event), [event])
-  const isEventClosed = nowMs >= endTimestamp
+  const explicitEndTimestamp = useMemo(() => resolveEventEndTimestamp(event), [event])
+  const hasExplicitEndTimestamp = explicitEndTimestamp != null
+  const endTimestamp = explicitEndTimestamp ?? nowMs
+  const isEventClosed = hasExplicitEndTimestamp && nowMs >= endTimestamp
   const isMarketClosed = useMemo(() => {
     if (config.topic.trim().toLowerCase() !== 'equity_prices') {
       return false
@@ -737,7 +751,12 @@ export default function EventLiveSeriesChart({
 
   useEffect(() => {
     const seriesSlug = config.series_slug?.trim()
-    if (!seriesSlug || !Number.isFinite(endTimestamp)) {
+    if (!seriesSlug) {
+      return
+    }
+
+    const snapshotEventEndMs = explicitEndTimestamp ?? Date.now()
+    if (!Number.isFinite(snapshotEventEndMs) || snapshotEventEndMs <= 0) {
       return
     }
 
@@ -748,10 +767,10 @@ export default function EventLiveSeriesChart({
       try {
         const query = new URLSearchParams({
           seriesSlug,
-          eventEndMs: String(endTimestamp),
+          eventEndMs: String(snapshotEventEndMs),
           activeWindowMinutes: String(config.active_window_minutes),
         })
-        if (startTimestamp != null && startTimestamp > 0 && startTimestamp < endTimestamp) {
+        if (startTimestamp != null && startTimestamp > 0 && startTimestamp < snapshotEventEndMs) {
           query.set('eventStartMs', String(startTimestamp))
         }
 
@@ -801,7 +820,7 @@ export default function EventLiveSeriesChart({
       isCancelled = true
       controller.abort()
     }
-  }, [config.active_window_minutes, config.series_slug, config.topic, endTimestamp, startTimestamp, subscriptionSymbol])
+  }, [config.active_window_minutes, config.series_slug, config.topic, explicitEndTimestamp, startTimestamp, subscriptionSymbol])
 
   useEffect(() => {
     if (!isLiveView) {
@@ -877,7 +896,7 @@ export default function EventLiveSeriesChart({
         return
       }
 
-      const updates = extractLivePriceUpdates(payload, config.topic, subscriptionSymbol)
+      const updates = extractLivePriceUpdates(payload, config.topic, subscriptionSymbol, Date.now())
       const normalizedUpdates = updates
         .map((update) => {
           const normalizedPrice = normalizeLiveChartPrice(update.price, config.topic)
@@ -1216,7 +1235,7 @@ export default function EventLiveSeriesChart({
       seconds,
     }
   }, [endTimestamp, nowMs])
-  const shouldShowCountdown = !isEventClosed && countdown.totalSeconds > 0
+  const shouldShowCountdown = hasExplicitEndTimestamp && !isEventClosed && countdown.totalSeconds > 0
   const xAxisTickValues = useMemo(() => {
     const startMs = nowMs - LIVE_WINDOW_MS
     const visibleStartMs = startMs + LIVE_X_AXIS_LEFT_LABEL_GUARD_MS
@@ -1519,11 +1538,13 @@ export default function EventLiveSeriesChart({
                         </TooltipContent>
                       </Tooltip>
                     )
-                  : (
-                      <div className="mr-[-4px] ml-auto sm:mr-[-6px]">
-                        {countdownEndedLogo}
-                      </div>
-                    )}
+                  : isEventClosed
+                    ? (
+                        <div className="mr-[-4px] ml-auto sm:mr-[-6px]">
+                          {countdownEndedLogo}
+                        </div>
+                      )
+                    : null}
               </div>
 
               <div className="relative z-0 pr-4 pl-0 sm:pr-6 sm:pl-0">
