@@ -2,7 +2,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import type { Route } from 'next'
-import { BadgePercentIcon, CalendarPlusIcon, LanguagesIcon, SettingsIcon, SwatchBookIcon, TagsIcon, TextSelectIcon, UsersIcon } from 'lucide-react'
+import { BadgePercentIcon, CalendarIcon, LanguagesIcon, SettingsIcon, SwatchBookIcon, TagsIcon, TextSelectIcon, UsersIcon } from 'lucide-react'
 import { useExtracted } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Link, usePathname } from '@/i18n/navigation'
@@ -24,12 +24,19 @@ export default function AdminSidebar() {
     { id: 'categories', label: t('Categories'), href: '/admin/categories' as Route, icon: TagsIcon },
     { id: 'market-context', label: t('Market Context'), href: '/admin/market-context' as Route, icon: TextSelectIcon },
     { id: 'affiliate', label: t('Affiliate'), href: '/admin/affiliate' as Route, icon: BadgePercentIcon },
-    { id: 'create-event', label: t('Create Event'), href: '/admin/create-event' as Route, icon: CalendarPlusIcon },
+    { id: 'events', label: t('Events'), href: '/admin/events' as Route, icon: CalendarIcon },
     { id: 'users', label: t('Users'), href: '/admin/users' as Route, icon: UsersIcon },
   ]
   const pathname = usePathname()
-  const activeItem = adminMenuItems.find(item => pathname === item.href)
-  const active = activeItem?.id ?? 'general'
+  const activeItem = adminMenuItems.find((item) => {
+    if (item.id === 'general') {
+      return pathname === item.href
+    }
+    return pathname === item.href || pathname.startsWith(`${item.href}/`)
+  })
+  const active = pathname.startsWith('/admin/create-event')
+    ? 'events'
+    : (activeItem?.id ?? 'general')
 
   return (
     <aside className="min-w-0 lg:sticky lg:top-28 lg:self-start">
