@@ -28,8 +28,7 @@ interface EventOrderPanelInputProps {
   shouldShake?: boolean
 }
 
-const BUY_CHIPS_DESKTOP = ['+$5', '+$25', '+$100']
-const BUY_CHIPS_MOBILE = ['+$1', '+$20', '+$100']
+const BUY_CHIPS = ['+$1', '+$5', '+$10', '+$100']
 
 export default function EventOrderPanelInput({
   isMobile,
@@ -139,14 +138,13 @@ export default function EventOrderPanelInput({
       ))
     }
 
-    const chipValues = isMobile ? BUY_CHIPS_MOBILE : BUY_CHIPS_DESKTOP
-    return chipValues.map(chip => (
+    return BUY_CHIPS.map(chip => (
       <Button
         type="button"
         key={chip}
         size="sm"
         variant="outline"
-        className="text-xs"
+        className="px-2 text-xs"
         onClick={() => {
           const chipValue = Number.parseInt(chip.substring(2), 10)
           const newValue = amountNumber + chipValue

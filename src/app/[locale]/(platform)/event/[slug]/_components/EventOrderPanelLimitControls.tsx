@@ -36,6 +36,8 @@ const QUICK_BUTTON_CLASS = `
   hover:bg-muted/80
 `
 
+const BUY_CHIPS = [-100, -10, 10, 100]
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
@@ -362,17 +364,19 @@ export default function EventOrderPanelLimitControls({
             )
           : (
               <div className="ml-auto flex h-8 w-1/2 justify-end gap-2">
-                {[-100, -10, 10, 100].map((step) => {
-                  const label = step > 0 ? `+${step}` : `${step}`
+                {BUY_CHIPS.map((chip) => {
+                  const label = chip > 0 ? `+${chip}` : `${chip}`
                   return (
-                    <button
-                      key={label}
+                    <Button
                       type="button"
-                      className={QUICK_BUTTON_CLASS}
-                      onClick={() => updateLimitShares(limitSharesNumber + step)}
+                      key={chip}
+                      size="sm"
+                      variant="outline"
+                      className="px-2 text-xs"
+                      onClick={() => updateLimitShares(limitSharesNumber + chip)}
                     >
                       {label}
-                    </button>
+                    </Button>
                   )
                 })}
               </div>
