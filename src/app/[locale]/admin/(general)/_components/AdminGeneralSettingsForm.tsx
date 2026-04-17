@@ -1,44 +1,31 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import type { AdminThemeSiteSettingsInitialState } from '@/app/[locale]/admin/theme/_types/theme-form-state'
 import type { CustomJavascriptCodeConfig, CustomJavascriptCodeDisablePage } from '@/lib/custom-javascript-code'
-import { ChevronDownIcon, ImageUp, RefreshCwIcon, SearchIcon, XIcon } from 'lucide-react'
 import { useExtracted } from 'next-intl'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useActionState, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react'
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   removeTermsOfServicePdfAction,
   updateGeneralSettingsAction,
 } from '@/app/[locale]/admin/(general)/_actions/update-general-settings'
-import AllowedMarketCreatorsManager from '@/app/[locale]/admin/(general)/_components/AllowedMarketCreatorsManager'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { InputError } from '@/components/ui/input-error'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  MAX_CUSTOM_JAVASCRIPT_CODE_NAME_LENGTH,
-  MAX_CUSTOM_JAVASCRIPT_CODE_SNIPPET_LENGTH,
-  MAX_CUSTOM_JAVASCRIPT_CODES,
-  serializeCustomJavascriptCodes,
-} from '@/lib/custom-javascript-code'
-import { GEOBLOCK_COUNTRY_OPTIONS } from '@/lib/geoblock-country-options'
-import { cn, sanitizeSvg } from '@/lib/utils'
+import { serializeCustomJavascriptCodes } from '@/lib/custom-javascript-code'
+import { sanitizeSvg } from '@/lib/utils'
+import BrandIdentitySection from './BrandIdentitySection'
+import GlobalAnnouncementSection from './GlobalAnnouncementSection'
+import IntegrationsSection from './IntegrationsSection'
+import LegalSection from './LegalSection'
+import MarketFeeSection from './MarketFeeSection'
+import SocialCommunitySection from './SocialCommunitySection'
 
 const initialState = {
   error: null,
 }
 
 const AUTOMATIC_MODEL_VALUE = '__AUTOMATIC__'
-const MAX_GLOBAL_ANNOUNCEMENT_MESSAGE_LENGTH = 220
-const MAX_GLOBAL_ANNOUNCEMENT_LINK_URL_LENGTH = 2048
 
 function formatBlockedCountriesValue(countries: string[]) {
   return countries.join(', ')
@@ -73,15 +60,6 @@ interface AdminGeneralSettingsFormProps {
   openRouterSettings: OpenRouterGeneralSettings
 }
 
-interface SettingsAccordionSectionProps {
-  value: string
-  header: ReactNode
-  children: ReactNode
-  className?: string
-  isOpen: boolean
-  onToggle: (value: string) => void
-}
-
 interface CustomJavascriptCodeDraft extends CustomJavascriptCodeConfig {
   id: string
 }
@@ -97,92 +75,44 @@ function toCustomJavascriptCodeConfig({ id: _id, ...code }: CustomJavascriptCode
   return code
 }
 
-function useSettingsAccordionSectionId() {
-  const contentId = useId()
-  return contentId
-}
-
-function SettingsAccordionSection({
-  value,
-  header,
-  children,
-  className,
-  isOpen,
-  onToggle,
-}: SettingsAccordionSectionProps) {
-  const contentId = useSettingsAccordionSectionId()
-
-  return (
-    <section
-      data-settings-section={value}
-      data-state={isOpen ? 'open' : 'closed'}
-      className={cn(
-        `overflow-hidden rounded-xl border bg-background transition-all duration-500 ease-in-out last:border-b`,
-        className,
-      )}
-    >
-      <button
-        type="button"
-        aria-controls={contentId}
-        aria-expanded={isOpen}
-        onClick={() => onToggle(value)}
-        className="
-          flex h-18 w-full items-center justify-between gap-4 px-4 py-0 text-left transition-colors
-          hover:bg-muted/50 hover:no-underline
-          focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background
-          focus-visible:outline-none
-        "
-      >
-        {header}
-        <ChevronDownIcon
-          className={cn(
-            'size-6 shrink-0 text-muted-foreground transition-transform duration-200',
-            isOpen && 'rotate-180',
-          )}
-        />
-      </button>
-      <div
-        className={cn(
-          'grid min-h-0 transition-[grid-template-rows] duration-200 ease-out',
-          isOpen
-            ? 'grid-rows-[1fr]'
-            : 'grid-rows-[0fr]',
-        )}
-      >
-        <div
-          id={contentId}
-          aria-hidden={!isOpen}
-          className={cn('min-h-0 overflow-hidden', isOpen && 'border-t border-border/30')}
-        >
-          <div className="p-4">
-            {children}
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function useGeneralSettingsFormState({
+function AdminGeneralSettingsFormInner({
   initialThemeSiteSettings,
   initialGlobalAnnouncement,
   initialBlockedCountries,
   initialTermsOfServicePdfPath,
+  initialTermsOfServicePdfUrl,
   openRouterSettings,
-}: {
-  initialThemeSiteSettings: AdminThemeSiteSettingsInitialState
-  initialGlobalAnnouncement: InitialGlobalAnnouncementSettings
-  initialBlockedCountries: string[]
-  initialTermsOfServicePdfPath: string
-  openRouterSettings: OpenRouterGeneralSettings
-}) {
+}: AdminGeneralSettingsFormProps) {
   const t = useExtracted()
+  const initialSiteName = initialThemeSiteSettings.siteName
+  const initialSiteDescription = initialThemeSiteSettings.siteDescription
   const initialLogoMode = initialThemeSiteSettings.logoMode
+  const initialLogoSvg = initialThemeSiteSettings.logoSvg
+  const initialLogoImagePath = initialThemeSiteSettings.logoImagePath
   const initialLogoImageUrl = initialThemeSiteSettings.logoImageUrl
+  const initialPwaIcon192Path = initialThemeSiteSettings.pwaIcon192Path
+  const initialPwaIcon512Path = initialThemeSiteSettings.pwaIcon512Path
   const initialPwaIcon192Url = initialThemeSiteSettings.pwaIcon192Url
   const initialPwaIcon512Url = initialThemeSiteSettings.pwaIcon512Url
+  const initialGoogleAnalyticsId = initialThemeSiteSettings.googleAnalyticsId
+  const initialDiscordLink = initialThemeSiteSettings.discordLink
+  const initialTwitterLink = initialThemeSiteSettings.twitterLink
+  const initialFacebookLink = initialThemeSiteSettings.facebookLink
+  const initialInstagramLink = initialThemeSiteSettings.instagramLink
+  const initialTiktokLink = initialThemeSiteSettings.tiktokLink
+  const initialLinkedinLink = initialThemeSiteSettings.linkedinLink
+  const initialYoutubeLink = initialThemeSiteSettings.youtubeLink
+  const initialSupportUrl = initialThemeSiteSettings.supportUrl
+  const initialGlobalAnnouncementMessage = initialGlobalAnnouncement.message
+  const initialGlobalAnnouncementLinkUrl = initialGlobalAnnouncement.linkUrl
+  const initialGlobalAnnouncementDisabledOn = initialGlobalAnnouncement.disabledOn
   const initialCustomJavascriptCodes = initialThemeSiteSettings.customJavascriptCodes
+  const initialFeeRecipientWallet = initialThemeSiteSettings.feeRecipientWallet
+  const initialLiFiIntegrator = initialThemeSiteSettings.lifiIntegrator
+  const initialLiFiApiKey = initialThemeSiteSettings.lifiApiKey
+  const initialLiFiApiKeyConfigured = initialThemeSiteSettings.lifiApiKeyConfigured
   const initialOpenRouterModel = openRouterSettings.defaultModel ?? ''
+  const initialOpenRouterApiKeyConfigured = openRouterSettings.isApiKeyConfigured
 
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(updateGeneralSettingsAction, initialState)
@@ -190,35 +120,35 @@ function useGeneralSettingsFormState({
   const wasPendingRef = useRef(isPending)
   const nextCustomJavascriptCodeIdRef = useRef(0)
 
-  const [siteName, setSiteName] = useState(initialThemeSiteSettings.siteName)
-  const [siteDescription, setSiteDescription] = useState(initialThemeSiteSettings.siteDescription)
+  const [siteName, setSiteName] = useState(initialSiteName)
+  const [siteDescription, setSiteDescription] = useState(initialSiteDescription)
   const [logoMode, setLogoMode] = useState(initialLogoMode)
-  const [logoSvg, setLogoSvg] = useState(initialThemeSiteSettings.logoSvg)
-  const [logoImagePath, setLogoImagePath] = useState(initialThemeSiteSettings.logoImagePath)
-  const [pwaIcon192Path] = useState(initialThemeSiteSettings.pwaIcon192Path)
-  const [pwaIcon512Path] = useState(initialThemeSiteSettings.pwaIcon512Path)
-  const [googleAnalyticsId, setGoogleAnalyticsId] = useState(initialThemeSiteSettings.googleAnalyticsId)
-  const [discordLink, setDiscordLink] = useState(initialThemeSiteSettings.discordLink)
-  const [twitterLink, setTwitterLink] = useState(initialThemeSiteSettings.twitterLink)
-  const [facebookLink, setFacebookLink] = useState(initialThemeSiteSettings.facebookLink)
-  const [instagramLink, setInstagramLink] = useState(initialThemeSiteSettings.instagramLink)
-  const [tiktokLink, setTiktokLink] = useState(initialThemeSiteSettings.tiktokLink)
-  const [linkedinLink, setLinkedinLink] = useState(initialThemeSiteSettings.linkedinLink)
-  const [youtubeLink, setYoutubeLink] = useState(initialThemeSiteSettings.youtubeLink)
-  const [supportUrl, setSupportUrl] = useState(initialThemeSiteSettings.supportUrl)
+  const [logoSvg, setLogoSvg] = useState(initialLogoSvg)
+  const [logoImagePath, setLogoImagePath] = useState(initialLogoImagePath)
+  const [pwaIcon192Path] = useState(initialPwaIcon192Path)
+  const [pwaIcon512Path] = useState(initialPwaIcon512Path)
+  const [googleAnalyticsId, setGoogleAnalyticsId] = useState(initialGoogleAnalyticsId)
+  const [discordLink, setDiscordLink] = useState(initialDiscordLink)
+  const [twitterLink, setTwitterLink] = useState(initialTwitterLink)
+  const [facebookLink, setFacebookLink] = useState(initialFacebookLink)
+  const [instagramLink, setInstagramLink] = useState(initialInstagramLink)
+  const [tiktokLink, setTiktokLink] = useState(initialTiktokLink)
+  const [linkedinLink, setLinkedinLink] = useState(initialLinkedinLink)
+  const [youtubeLink, setYoutubeLink] = useState(initialYoutubeLink)
+  const [supportUrl, setSupportUrl] = useState(initialSupportUrl)
   const [blockedCountries, setBlockedCountries] = useState(initialBlockedCountries)
-  const [globalAnnouncementMessage, setGlobalAnnouncementMessage] = useState(initialGlobalAnnouncement.message)
-  const [globalAnnouncementLinkUrl, setGlobalAnnouncementLinkUrl] = useState(initialGlobalAnnouncement.linkUrl)
+  const [globalAnnouncementMessage, setGlobalAnnouncementMessage] = useState(initialGlobalAnnouncementMessage)
+  const [globalAnnouncementLinkUrl, setGlobalAnnouncementLinkUrl] = useState(initialGlobalAnnouncementLinkUrl)
   const [globalAnnouncementDisabledOn, setGlobalAnnouncementDisabledOn] = useState<CustomJavascriptCodeDisablePage[]>(
-    initialGlobalAnnouncement.disabledOn,
+    initialGlobalAnnouncementDisabledOn,
   )
   const [customJavascriptCodes, setCustomJavascriptCodes] = useState<CustomJavascriptCodeDraft[]>(
     () => initialCustomJavascriptCodes.map(code => createCustomJavascriptCodeDraft(nextCustomJavascriptCodeIdRef.current++, code)),
   )
-  const [feeRecipientWallet, setFeeRecipientWallet] = useState(initialThemeSiteSettings.feeRecipientWallet)
+  const [feeRecipientWallet, setFeeRecipientWallet] = useState(initialFeeRecipientWallet)
   const [tosPdfPath, setTosPdfPath] = useState(initialTermsOfServicePdfPath)
-  const [lifiIntegrator, setLifiIntegrator] = useState(initialThemeSiteSettings.lifiIntegrator)
-  const [lifiApiKey, setLifiApiKey] = useState(initialThemeSiteSettings.lifiApiKey)
+  const [lifiIntegrator, setLifiIntegrator] = useState(initialLiFiIntegrator)
+  const [lifiApiKey, setLifiApiKey] = useState(initialLiFiApiKey)
   const [openRouterApiKey, setOpenRouterApiKey] = useState('')
   const [openRouterModel, setOpenRouterModel] = useState(initialOpenRouterModel)
   const [openRouterSelectValue, setOpenRouterSelectValue] = useState(
@@ -234,24 +164,21 @@ function useGeneralSettingsFormState({
   const [pwaIcon512PreviewUrl, setPwaIcon512PreviewUrl] = useState<string | null>(null)
   const [openSections, setOpenSections] = useState<string[]>([])
 
-  useEffect(function revokePreviewUrlsOnChange() {
-    const capturedLogoUrl = logoPreviewUrl
-    const capturedPwa192Url = pwaIcon192PreviewUrl
-    const capturedPwa512Url = pwaIcon512PreviewUrl
-    return function revokeUrls() {
-      if (capturedLogoUrl) {
-        URL.revokeObjectURL(capturedLogoUrl)
+  useEffect(function revokeObjectUrls() {
+    return function cleanup() {
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl)
       }
-      if (capturedPwa192Url) {
-        URL.revokeObjectURL(capturedPwa192Url)
+      if (pwaIcon192PreviewUrl) {
+        URL.revokeObjectURL(pwaIcon192PreviewUrl)
       }
-      if (capturedPwa512Url) {
-        URL.revokeObjectURL(capturedPwa512Url)
+      if (pwaIcon512PreviewUrl) {
+        URL.revokeObjectURL(pwaIcon512PreviewUrl)
       }
     }
   }, [logoPreviewUrl, pwaIcon192PreviewUrl, pwaIcon512PreviewUrl])
 
-  useEffect(function toastOnSettingsTransition() {
+  useEffect(function handleFormTransition() {
     const transitionedToIdle = wasPendingRef.current && !isPending
 
     if (transitionedToIdle && state.error === null) {
@@ -265,15 +192,9 @@ function useGeneralSettingsFormState({
     wasPendingRef.current = isPending
   }, [isPending, router, state.error, t])
 
-  const imagePreview = useMemo(() => {
-    return logoPreviewUrl ?? initialLogoImageUrl
-  }, [initialLogoImageUrl, logoPreviewUrl])
-  const pwaIcon192Preview = useMemo(() => {
-    return pwaIcon192PreviewUrl ?? initialPwaIcon192Url
-  }, [initialPwaIcon192Url, pwaIcon192PreviewUrl])
-  const pwaIcon512Preview = useMemo(() => {
-    return pwaIcon512PreviewUrl ?? initialPwaIcon512Url
-  }, [initialPwaIcon512Url, pwaIcon512PreviewUrl])
+  const imagePreview = useMemo(() => logoPreviewUrl ?? initialLogoImageUrl, [initialLogoImageUrl, logoPreviewUrl])
+  const pwaIcon192Preview = useMemo(() => pwaIcon192PreviewUrl ?? initialPwaIcon192Url, [initialPwaIcon192Url, pwaIcon192PreviewUrl])
+  const pwaIcon512Preview = useMemo(() => pwaIcon512PreviewUrl ?? initialPwaIcon512Url, [initialPwaIcon512Url, pwaIcon512PreviewUrl])
   const serializedCustomJavascriptCodes = useMemo(
     () => serializeCustomJavascriptCodes(customJavascriptCodes.map(toCustomJavascriptCodeConfig)),
     [customJavascriptCodes],
@@ -282,6 +203,7 @@ function useGeneralSettingsFormState({
     () => JSON.stringify(globalAnnouncementDisabledOn),
     [globalAnnouncementDisabledOn],
   )
+  const blockedCountriesValue = useMemo(() => formatBlockedCountriesValue(blockedCountries), [blockedCountries])
   const customJavascriptCodeDisablePageOptions = useMemo(() => ([
     { value: 'home' as const, label: t('Home') },
     { value: 'event' as const, label: '/event' },
@@ -297,236 +219,9 @@ function useGeneralSettingsFormState({
     [sanitizedLogoSvg],
   )
 
-  return {
-    router,
-    state,
-    formAction,
-    isPending,
-    isRemovingTermsOfServicePdf,
-    startRemovingTermsOfServicePdf,
-    nextCustomJavascriptCodeIdRef,
-    siteName,
-    setSiteName,
-    siteDescription,
-    setSiteDescription,
-    logoMode,
-    setLogoMode,
-    logoSvg,
-    setLogoSvg,
-    logoImagePath,
-    setLogoImagePath,
-    pwaIcon192Path,
-    pwaIcon512Path,
-    googleAnalyticsId,
-    setGoogleAnalyticsId,
-    discordLink,
-    setDiscordLink,
-    twitterLink,
-    setTwitterLink,
-    facebookLink,
-    setFacebookLink,
-    instagramLink,
-    setInstagramLink,
-    tiktokLink,
-    setTiktokLink,
-    linkedinLink,
-    setLinkedinLink,
-    youtubeLink,
-    setYoutubeLink,
-    supportUrl,
-    setSupportUrl,
-    blockedCountries,
-    setBlockedCountries,
-    globalAnnouncementMessage,
-    setGlobalAnnouncementMessage,
-    globalAnnouncementLinkUrl,
-    setGlobalAnnouncementLinkUrl,
-    globalAnnouncementDisabledOn,
-    setGlobalAnnouncementDisabledOn,
-    customJavascriptCodes,
-    setCustomJavascriptCodes,
-    feeRecipientWallet,
-    setFeeRecipientWallet,
-    tosPdfPath,
-    setTosPdfPath,
-    lifiIntegrator,
-    setLifiIntegrator,
-    lifiApiKey,
-    setLifiApiKey,
-    openRouterApiKey,
-    setOpenRouterApiKey,
-    openRouterModel,
-    setOpenRouterModel,
-    openRouterSelectValue,
-    setOpenRouterSelectValue,
-    openRouterModelOptions,
-    setOpenRouterModelOptions,
-    openRouterModelsError,
-    setOpenRouterModelsError,
-    isRefreshingOpenRouterModels,
-    setIsRefreshingOpenRouterModels,
-    selectedLogoFile,
-    setSelectedLogoFile,
-    selectedTermsOfServicePdfFile,
-    setSelectedTermsOfServicePdfFile,
-    logoPreviewUrl,
-    setLogoPreviewUrl,
-    pwaIcon192PreviewUrl,
-    setPwaIcon192PreviewUrl,
-    pwaIcon512PreviewUrl,
-    setPwaIcon512PreviewUrl,
-    openSections,
-    setOpenSections,
-    imagePreview,
-    pwaIcon192Preview,
-    pwaIcon512Preview,
-    serializedCustomJavascriptCodes,
-    serializedGlobalAnnouncementDisabledOn,
-    customJavascriptCodeDisablePageOptions,
-    sanitizedLogoSvg,
-    svgPreviewUrl,
-    initialLogoMode,
-    initialLiFiApiKeyConfigured: initialThemeSiteSettings.lifiApiKeyConfigured,
-    initialOpenRouterApiKeyConfigured: openRouterSettings.isApiKeyConfigured,
-  }
-}
-
-function AdminGeneralSettingsFormInner({
-  initialThemeSiteSettings,
-  initialGlobalAnnouncement,
-  initialBlockedCountries,
-  initialTermsOfServicePdfPath,
-  initialTermsOfServicePdfUrl,
-  openRouterSettings,
-}: AdminGeneralSettingsFormProps) {
-  const t = useExtracted()
-  const {
-    router,
-    state,
-    formAction,
-    isPending,
-    isRemovingTermsOfServicePdf,
-    startRemovingTermsOfServicePdf,
-    nextCustomJavascriptCodeIdRef,
-    siteName,
-    setSiteName,
-    siteDescription,
-    setSiteDescription,
-    logoMode,
-    setLogoMode,
-    logoSvg,
-    setLogoSvg,
-    logoImagePath,
-    setLogoImagePath,
-    pwaIcon192Path,
-    pwaIcon512Path,
-    googleAnalyticsId,
-    setGoogleAnalyticsId,
-    discordLink,
-    setDiscordLink,
-    twitterLink,
-    setTwitterLink,
-    facebookLink,
-    setFacebookLink,
-    instagramLink,
-    setInstagramLink,
-    tiktokLink,
-    setTiktokLink,
-    linkedinLink,
-    setLinkedinLink,
-    youtubeLink,
-    setYoutubeLink,
-    supportUrl,
-    setSupportUrl,
-    blockedCountries,
-    setBlockedCountries,
-    globalAnnouncementMessage,
-    setGlobalAnnouncementMessage,
-    globalAnnouncementLinkUrl,
-    setGlobalAnnouncementLinkUrl,
-    globalAnnouncementDisabledOn,
-    setGlobalAnnouncementDisabledOn,
-    customJavascriptCodes,
-    setCustomJavascriptCodes,
-    feeRecipientWallet,
-    setFeeRecipientWallet,
-    tosPdfPath,
-    setTosPdfPath,
-    lifiIntegrator,
-    setLifiIntegrator,
-    lifiApiKey,
-    setLifiApiKey,
-    openRouterApiKey,
-    setOpenRouterApiKey,
-    openRouterModel,
-    setOpenRouterModel,
-    openRouterSelectValue,
-    setOpenRouterSelectValue,
-    openRouterModelOptions,
-    setOpenRouterModelOptions,
-    openRouterModelsError,
-    setOpenRouterModelsError,
-    isRefreshingOpenRouterModels,
-    setIsRefreshingOpenRouterModels,
-    selectedLogoFile,
-    setSelectedLogoFile,
-    selectedTermsOfServicePdfFile,
-    setSelectedTermsOfServicePdfFile,
-    logoPreviewUrl,
-    setLogoPreviewUrl,
-    pwaIcon192PreviewUrl,
-    setPwaIcon192PreviewUrl,
-    pwaIcon512PreviewUrl,
-    setPwaIcon512PreviewUrl,
-    openSections,
-    setOpenSections,
-    imagePreview,
-    pwaIcon192Preview,
-    pwaIcon512Preview,
-    serializedCustomJavascriptCodes,
-    serializedGlobalAnnouncementDisabledOn,
-    customJavascriptCodeDisablePageOptions,
-    sanitizedLogoSvg,
-    svgPreviewUrl,
-    initialLogoMode,
-    initialLiFiApiKeyConfigured,
-    initialOpenRouterApiKeyConfigured,
-  } = useGeneralSettingsFormState({
-    initialThemeSiteSettings,
-    initialGlobalAnnouncement,
-    initialBlockedCountries,
-    initialTermsOfServicePdfPath,
-    openRouterSettings,
-  })
-
-  const showImagePreview = Boolean(imagePreview)
-  const showSvgPreview = !showImagePreview && Boolean(sanitizedLogoSvg.trim())
   const hasUploadedTermsOfServicePdf = Boolean(initialTermsOfServicePdfUrl && tosPdfPath.trim())
   const trimmedOpenRouterApiKey = openRouterApiKey.trim()
   const openRouterModelSelectEnabled = openRouterSettings.isModelSelectEnabled || Boolean(trimmedOpenRouterApiKey)
-  const [isBlockedCountriesDialogOpen, setIsBlockedCountriesDialogOpen] = useState(false)
-  const [blockedCountrySearch, setBlockedCountrySearch] = useState('')
-  const blockedCountriesValue = useMemo(() => formatBlockedCountriesValue(blockedCountries), [blockedCountries])
-  const blockedCountryOptionsByCode = useMemo(
-    () => new Map(GEOBLOCK_COUNTRY_OPTIONS.map(option => [option.code, option])),
-    [],
-  )
-  const selectedBlockedCountryOptions = useMemo(() => {
-    return blockedCountries.map((code) => {
-      return blockedCountryOptionsByCode.get(code) ?? { code, name: code }
-    })
-  }, [blockedCountries, blockedCountryOptionsByCode])
-  const filteredBlockedCountryOptions = useMemo(() => {
-    const normalizedSearch = blockedCountrySearch.trim().toLowerCase()
-    if (!normalizedSearch) {
-      return GEOBLOCK_COUNTRY_OPTIONS
-    }
-
-    return GEOBLOCK_COUNTRY_OPTIONS.filter(option =>
-      option.code.toLowerCase().includes(normalizedSearch)
-      || option.name.toLowerCase().includes(normalizedSearch),
-    )
-  }, [blockedCountrySearch])
 
   function handleOpenRouterModelChange(nextValue: string) {
     setOpenRouterSelectValue(nextValue)
@@ -545,6 +240,10 @@ function AdminGeneralSettingsFormInner({
 
       return previous.filter(countryCode => countryCode !== code)
     })
+  }
+
+  function handleClearBlockedCountries() {
+    setBlockedCountries([])
   }
 
   function toggleSection(value: string) {
@@ -681,986 +380,126 @@ function AdminGeneralSettingsFormInner({
       <input type="hidden" name="tos_pdf_path" value={tosPdfPath} />
       <input type="hidden" name="custom_javascript_codes_json" value={serializedCustomJavascriptCodes} />
       <input type="hidden" name="global_announcement_disabled_on_json" value={serializedGlobalAnnouncementDisabledOn} />
+      <input type="hidden" name="blocked_countries" value={blockedCountriesValue} />
 
       <div className="grid gap-6">
-        <SettingsAccordionSection
-          value="brand-identity"
-          isOpen={openSections.includes('brand-identity')}
-          onToggle={toggleSection}
-          header={<h3 className="text-base font-medium">{t('Brand identity')}</h3>}
-        >
-          <div className="grid gap-6">
-            <div className="grid gap-6 md:grid-cols-[11rem_1fr]">
-              <div className="grid gap-3">
-                <Label>{t('Logo icon')}</Label>
-                <div className="grid gap-2">
-                  <Input
-                    id="theme-logo-file"
-                    type="file"
-                    name="logo_image"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    disabled={isPending}
-                    className="sr-only"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null
-                      if (logoPreviewUrl) {
-                        URL.revokeObjectURL(logoPreviewUrl)
-                      }
+        <BrandIdentitySection
+          isPending={isPending}
+          openSections={openSections}
+          onToggleSection={toggleSection}
+          siteName={siteName}
+          setSiteName={setSiteName}
+          siteDescription={siteDescription}
+          setSiteDescription={setSiteDescription}
+          logoMode={logoMode}
+          setLogoMode={setLogoMode}
+          logoSvg={logoSvg}
+          setLogoSvg={setLogoSvg}
+          logoImagePath={logoImagePath}
+          setLogoImagePath={setLogoImagePath}
+          selectedLogoFile={selectedLogoFile}
+          setSelectedLogoFile={setSelectedLogoFile}
+          logoPreviewUrl={logoPreviewUrl}
+          setLogoPreviewUrl={setLogoPreviewUrl}
+          pwaIcon192PreviewUrl={pwaIcon192PreviewUrl}
+          setPwaIcon192PreviewUrl={setPwaIcon192PreviewUrl}
+          pwaIcon512PreviewUrl={pwaIcon512PreviewUrl}
+          setPwaIcon512PreviewUrl={setPwaIcon512PreviewUrl}
+          imagePreview={imagePreview}
+          svgPreviewUrl={svgPreviewUrl}
+          sanitizedLogoSvg={sanitizedLogoSvg}
+          pwaIcon192Preview={pwaIcon192Preview}
+          pwaIcon512Preview={pwaIcon512Preview}
+          initialLogoMode={initialLogoMode}
+        />
 
-                      setSelectedLogoFile(file)
+        <SocialCommunitySection
+          isPending={isPending}
+          openSections={openSections}
+          onToggleSection={toggleSection}
+          discordLink={discordLink}
+          setDiscordLink={setDiscordLink}
+          twitterLink={twitterLink}
+          setTwitterLink={setTwitterLink}
+          facebookLink={facebookLink}
+          setFacebookLink={setFacebookLink}
+          instagramLink={instagramLink}
+          setInstagramLink={setInstagramLink}
+          tiktokLink={tiktokLink}
+          setTiktokLink={setTiktokLink}
+          linkedinLink={linkedinLink}
+          setLinkedinLink={setLinkedinLink}
+          youtubeLink={youtubeLink}
+          setYoutubeLink={setYoutubeLink}
+          supportUrl={supportUrl}
+          setSupportUrl={setSupportUrl}
+        />
 
-                      if (file) {
-                        setLogoPreviewUrl(URL.createObjectURL(file))
-                        if (file.type === 'image/svg+xml') {
-                          setLogoMode('svg')
-                          setLogoImagePath('')
-                          void file.text().then((text) => {
-                            setLogoSvg(sanitizeSvg(text))
-                          })
-                        }
-                        else {
-                          setLogoMode('image')
-                        }
-                      }
-                      else {
-                        setLogoPreviewUrl(null)
-                        setLogoMode(initialLogoMode)
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="theme-logo-file"
-                    className={cn(
-                      `
-                        group relative flex size-40 cursor-pointer items-center justify-center overflow-hidden
-                        rounded-xl border border-dashed border-border bg-muted/20 text-muted-foreground transition
-                        hover:border-primary/60
-                      `,
-                      { 'cursor-not-allowed opacity-60 hover:border-border hover:bg-muted/20': isPending },
-                    )}
-                  >
-                    <span className={`
-                      pointer-events-none absolute inset-0 bg-foreground/0 transition
-                      group-hover:bg-foreground/5
-                    `}
-                    />
-                    {showImagePreview && (
-                      <Image
-                        src={imagePreview ?? ''}
-                        alt={t('Platform logo')}
-                        fill
-                        sizes="160px"
-                        className="object-contain"
-                        unoptimized
-                      />
-                    )}
-                    {!showImagePreview && showSvgPreview && (
-                      <Image
-                        src={svgPreviewUrl}
-                        alt={t('Platform logo')}
-                        fill
-                        sizes="160px"
-                        className="object-contain"
-                        unoptimized
-                      />
-                    )}
-                    <ImageUp
-                      className={cn(
-                        `
-                          pointer-events-none absolute top-1/2 left-1/2 z-10 size-7 -translate-1/2 text-foreground/70
-                          opacity-0 transition
-                          group-hover:opacity-100
-                        `,
-                      )}
-                    />
-                    <span
-                      className={`
-                        pointer-events-none absolute bottom-2 left-1/2 z-10 w-30 -translate-x-1/2 rounded-md
-                        bg-background/80 px-2 py-1 text-center text-2xs leading-tight font-medium text-muted-foreground
-                        opacity-0 transition
-                        group-hover:opacity-100
-                      `}
-                    >
-                      {t('SVG, PNG, JPG or WebP')}
-                    </span>
-                  </label>
-                </div>
-                {selectedLogoFile && (
-                  <p className="text-xs text-muted-foreground">
-                    {t('Selected file:')}
-                    {' '}
-                    {selectedLogoFile.name}
-                  </p>
-                )}
-              </div>
+        <GlobalAnnouncementSection
+          isPending={isPending}
+          openSections={openSections}
+          onToggleSection={toggleSection}
+          globalAnnouncementMessage={globalAnnouncementMessage}
+          onGlobalAnnouncementMessageChange={setGlobalAnnouncementMessage}
+          globalAnnouncementLinkUrl={globalAnnouncementLinkUrl}
+          onGlobalAnnouncementLinkUrlChange={setGlobalAnnouncementLinkUrl}
+          globalAnnouncementDisabledOn={globalAnnouncementDisabledOn}
+          onToggleGlobalAnnouncementDisableOn={handleToggleGlobalAnnouncementDisableOn}
+          customJavascriptCodeDisablePageOptions={customJavascriptCodeDisablePageOptions}
+        />
 
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="theme-site-name">{t('Company name')}</Label>
-                  <Input
-                    id="theme-site-name"
-                    name="site_name"
-                    maxLength={80}
-                    value={siteName}
-                    onChange={event => setSiteName(event.target.value)}
-                    disabled={isPending}
-                    placeholder={t('Your company name')}
-                  />
-                </div>
+        <LegalSection
+          isPending={isPending}
+          isRemovingTermsOfServicePdf={isRemovingTermsOfServicePdf}
+          openSections={openSections}
+          onToggleSection={toggleSection}
+          selectedTermsOfServicePdfFile={selectedTermsOfServicePdfFile}
+          setSelectedTermsOfServicePdfFile={setSelectedTermsOfServicePdfFile}
+          hasUploadedTermsOfServicePdf={hasUploadedTermsOfServicePdf}
+          initialTermsOfServicePdfUrl={initialTermsOfServicePdfUrl}
+          onRemoveTermsOfServicePdf={handleRemoveTermsOfServicePdf}
+          blockedCountries={blockedCountries}
+          onToggleBlockedCountry={handleToggleBlockedCountry}
+          onClearBlockedCountries={handleClearBlockedCountries}
+        />
 
-                <div className="grid gap-2">
-                  <Label htmlFor="theme-site-description">{t('Company description')}</Label>
-                  <Input
-                    id="theme-site-description"
-                    name="site_description"
-                    maxLength={180}
-                    value={siteDescription}
-                    onChange={event => setSiteDescription(event.target.value)}
-                    disabled={isPending}
-                    placeholder={t('Short description used in metadata and wallet dialogs')}
-                  />
-                </div>
-              </div>
-            </div>
+        <IntegrationsSection
+          isPending={isPending}
+          openSections={openSections}
+          onToggleSection={toggleSection}
+          googleAnalyticsId={googleAnalyticsId}
+          onGoogleAnalyticsIdChange={setGoogleAnalyticsId}
+          openRouterApiKey={openRouterApiKey}
+          onOpenRouterApiKeyChange={setOpenRouterApiKey}
+          openRouterSelectValue={openRouterSelectValue}
+          onOpenRouterModelChange={handleOpenRouterModelChange}
+          openRouterModelSelectEnabled={openRouterModelSelectEnabled}
+          openRouterModelOptions={openRouterModelOptions}
+          openRouterModelsError={openRouterModelsError}
+          isRefreshingOpenRouterModels={isRefreshingOpenRouterModels}
+          trimmedOpenRouterApiKey={trimmedOpenRouterApiKey}
+          onRefreshOpenRouterModels={handleRefreshOpenRouterModels}
+          initialOpenRouterApiKeyConfigured={initialOpenRouterApiKeyConfigured}
+          lifiIntegrator={lifiIntegrator}
+          onLifiIntegratorChange={setLifiIntegrator}
+          lifiApiKey={lifiApiKey}
+          onLifiApiKeyChange={setLifiApiKey}
+          initialLiFiApiKeyConfigured={initialLiFiApiKeyConfigured}
+          customJavascriptCodes={customJavascriptCodes}
+          onAddCustomJavascriptCode={handleAddCustomJavascriptCode}
+          onRemoveCustomJavascriptCode={handleRemoveCustomJavascriptCode}
+          onUpdateCustomJavascriptCode={updateCustomJavascriptCode}
+          onToggleCustomJavascriptCodeDisableOn={handleToggleCustomJavascriptCodeDisableOn}
+          customJavascriptCodeDisablePageOptions={customJavascriptCodeDisablePageOptions}
+        />
 
-            <div className="grid gap-4 border-t border-border/50 pt-6">
-              <h4 className="text-sm font-medium">{t('App install icon (PWA)')}</h4>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label>{t('Icon 192x192')}</Label>
-                  <Input
-                    id="theme-pwa-icon-192-file"
-                    type="file"
-                    name="pwa_icon_192"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    disabled={isPending}
-                    className="sr-only"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null
-                      if (pwaIcon192PreviewUrl) {
-                        URL.revokeObjectURL(pwaIcon192PreviewUrl)
-                      }
-                      setPwaIcon192PreviewUrl(file ? URL.createObjectURL(file) : null)
-                    }}
-                  />
-                  <label
-                    htmlFor="theme-pwa-icon-192-file"
-                    className={cn(
-                      `
-                        group relative flex size-28 cursor-pointer items-center justify-center overflow-hidden
-                        rounded-xl border border-dashed border-border bg-muted/20 text-muted-foreground transition
-                        hover:border-primary/60
-                      `,
-                      { 'cursor-not-allowed opacity-60 hover:border-border hover:bg-muted/20': isPending },
-                    )}
-                  >
-                    <span className={`
-                      pointer-events-none absolute inset-0 bg-foreground/0 transition
-                      group-hover:bg-foreground/5
-                    `}
-                    />
-                    <Image
-                      src={pwaIcon192Preview}
-                      alt={t('PWA icon 192x192')}
-                      fill
-                      sizes="112px"
-                      className="object-contain"
-                      unoptimized
-                    />
-                    <ImageUp
-                      className={cn(
-                        `
-                          pointer-events-none absolute top-1/2 left-1/2 z-10 size-6 -translate-1/2 text-foreground/70
-                          opacity-0 transition
-                          group-hover:opacity-100
-                        `,
-                      )}
-                    />
-                    <span
-                      className={`
-                        pointer-events-none absolute bottom-1.5 left-1/2 z-10 w-20 -translate-x-1/2 rounded-md
-                        bg-background/80 px-1.5 py-0.5 text-center text-2xs leading-tight font-medium
-                        text-muted-foreground opacity-0 transition
-                        group-hover:opacity-100
-                      `}
-                    >
-                      {t('PNG, JPG, WebP or SVG')}
-                    </span>
-                  </label>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label>{t('Icon 512x512')}</Label>
-                  <Input
-                    id="theme-pwa-icon-512-file"
-                    type="file"
-                    name="pwa_icon_512"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    disabled={isPending}
-                    className="sr-only"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null
-                      if (pwaIcon512PreviewUrl) {
-                        URL.revokeObjectURL(pwaIcon512PreviewUrl)
-                      }
-                      setPwaIcon512PreviewUrl(file ? URL.createObjectURL(file) : null)
-                    }}
-                  />
-                  <label
-                    htmlFor="theme-pwa-icon-512-file"
-                    className={cn(
-                      `
-                        group relative flex size-28 cursor-pointer items-center justify-center overflow-hidden
-                        rounded-xl border border-dashed border-border bg-muted/20 text-muted-foreground transition
-                        hover:border-primary/60
-                      `,
-                      { 'cursor-not-allowed opacity-60 hover:border-border hover:bg-muted/20': isPending },
-                    )}
-                  >
-                    <span className={`
-                      pointer-events-none absolute inset-0 bg-foreground/0 transition
-                      group-hover:bg-foreground/5
-                    `}
-                    />
-                    <Image
-                      src={pwaIcon512Preview}
-                      alt={t('PWA icon 512x512')}
-                      fill
-                      sizes="112px"
-                      className="object-contain"
-                      unoptimized
-                    />
-                    <ImageUp
-                      className={cn(
-                        `
-                          pointer-events-none absolute top-1/2 left-1/2 z-10 size-6 -translate-1/2 text-foreground/70
-                          opacity-0 transition
-                          group-hover:opacity-100
-                        `,
-                      )}
-                    />
-                    <span
-                      className={`
-                        pointer-events-none absolute bottom-1.5 left-1/2 z-10 w-20 -translate-x-1/2 rounded-md
-                        bg-background/80 px-1.5 py-0.5 text-center text-2xs leading-tight font-medium
-                        text-muted-foreground opacity-0 transition
-                        group-hover:opacity-100
-                      `}
-                    >
-                      {t('PNG, JPG, WebP or SVG')}
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </SettingsAccordionSection>
-
-        <SettingsAccordionSection
-          value="community-analytics"
-          isOpen={openSections.includes('community-analytics')}
-          onToggle={toggleSection}
-          header={<h3 className="text-base font-medium">{t('Social & Community')}</h3>}
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="theme-discord-link">{t('Discord community link')}</Label>
-              <Input
-                id="theme-discord-link"
-                name="discord_link"
-                maxLength={2048}
-                value={discordLink}
-                onChange={event => setDiscordLink(event.target.value)}
-                disabled={isPending}
-                placeholder={t('https://discord.gg/invite-url (optional)')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="theme-twitter-link">{t('X / Twitter link')}</Label>
-              <Input
-                id="theme-twitter-link"
-                name="twitter_link"
-                maxLength={2048}
-                value={twitterLink}
-                onChange={event => setTwitterLink(event.target.value)}
-                disabled={isPending}
-                placeholder={t('https://x.com/your-handle (optional)')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="theme-facebook-link">{t('Facebook link')}</Label>
-              <Input
-                id="theme-facebook-link"
-                name="facebook_link"
-                maxLength={2048}
-                value={facebookLink}
-                onChange={event => setFacebookLink(event.target.value)}
-                disabled={isPending}
-                placeholder={t('https://facebook.com/your-page (optional)')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="theme-instagram-link">{t('Instagram link')}</Label>
-              <Input
-                id="theme-instagram-link"
-                name="instagram_link"
-                maxLength={2048}
-                value={instagramLink}
-                onChange={event => setInstagramLink(event.target.value)}
-                disabled={isPending}
-                placeholder={t('https://instagram.com/your-handle (optional)')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="theme-tiktok-link">{t('TikTok link')}</Label>
-              <Input
-                id="theme-tiktok-link"
-                name="tiktok_link"
-                maxLength={2048}
-                value={tiktokLink}
-                onChange={event => setTiktokLink(event.target.value)}
-                disabled={isPending}
-                placeholder={t('https://tiktok.com/@your-handle (optional)')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="theme-linkedin-link">{t('LinkedIn link')}</Label>
-              <Input
-                id="theme-linkedin-link"
-                name="linkedin_link"
-                maxLength={2048}
-                value={linkedinLink}
-                onChange={event => setLinkedinLink(event.target.value)}
-                disabled={isPending}
-                placeholder={t('https://linkedin.com/company/your-company (optional)')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="theme-youtube-link">{t('YouTube link')}</Label>
-              <Input
-                id="theme-youtube-link"
-                name="youtube_link"
-                maxLength={2048}
-                value={youtubeLink}
-                onChange={event => setYoutubeLink(event.target.value)}
-                disabled={isPending}
-                placeholder={t('https://youtube.com/@your-channel (optional)')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="theme-support-link">{t('Support link')}</Label>
-              <Input
-                id="theme-support-link"
-                name="support_url"
-                maxLength={2048}
-                value={supportUrl}
-                onChange={event => setSupportUrl(event.target.value)}
-                disabled={isPending}
-                placeholder={t('Discord, Telegram, WhatsApp link, or support email (optional)')}
-              />
-            </div>
-          </div>
-        </SettingsAccordionSection>
-
-        <SettingsAccordionSection
-          value="global-announcement"
-          isOpen={openSections.includes('global-announcement')}
-          onToggle={toggleSection}
-          header={<h3 className="text-base font-medium">{t('Global announcement banner')}</h3>}
-        >
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="global-announcement-message">{t('Message')}</Label>
-              <Input
-                id="global-announcement-message"
-                name="global_announcement_message"
-                maxLength={MAX_GLOBAL_ANNOUNCEMENT_MESSAGE_LENGTH}
-                value={globalAnnouncementMessage}
-                onChange={event => setGlobalAnnouncementMessage(event.target.value)}
-                disabled={isPending}
-                placeholder={t('e.g. Refer friends and earn rewards this week')}
-              />
-              <p className="text-xs text-muted-foreground">
-                {t('Displayed in the website header. Leave empty to hide.')}
-              </p>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="global-announcement-link-url">{t('URL (optional)')}</Label>
-              <Input
-                id="global-announcement-link-url"
-                name="global_announcement_link_url"
-                maxLength={MAX_GLOBAL_ANNOUNCEMENT_LINK_URL_LENGTH}
-                value={globalAnnouncementLinkUrl}
-                onChange={event => setGlobalAnnouncementLinkUrl(event.target.value)}
-                disabled={isPending}
-                placeholder={t('https://example.com/campaign')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>{t('Disable on')}</Label>
-              <div className="flex flex-wrap gap-3">
-                {customJavascriptCodeDisablePageOptions.map((option) => {
-                  const fieldId = `global-announcement-disable-${option.value}`
-                  return (
-                    <label
-                      key={option.value}
-                      htmlFor={fieldId}
-                      className={cn(
-                        `
-                          flex min-w-32 cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2
-                          text-sm transition-colors
-                          hover:bg-muted/40
-                        `,
-                        globalAnnouncementDisabledOn.includes(option.value) && 'border-primary/50 bg-primary/5',
-                      )}
-                    >
-                      <Checkbox
-                        id={fieldId}
-                        checked={globalAnnouncementDisabledOn.includes(option.value)}
-                        disabled={isPending}
-                        onCheckedChange={checked => handleToggleGlobalAnnouncementDisableOn(option.value, checked === true)}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </SettingsAccordionSection>
-
-        <SettingsAccordionSection
-          value="legal"
-          isOpen={openSections.includes('legal')}
-          onToggle={toggleSection}
-          header={<h3 className="text-base font-medium">{t('Legal & Geoblocking')}</h3>}
-        >
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="terms-of-service-pdf">{t('Terms of Use PDF')}</Label>
-              <Input
-                id="terms-of-service-pdf"
-                type="file"
-                name="tos_pdf"
-                accept="application/pdf"
-                disabled={isPending || isRemovingTermsOfServicePdf}
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null
-                  setSelectedTermsOfServicePdfFile(file)
-                }}
-              />
-              <p className="text-xs text-muted-foreground">
-                {t('Upload a PDF to replace the default /tos page content. PDF only, up to 2MB.')}
-              </p>
-            </div>
-
-            {selectedTermsOfServicePdfFile
-              ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t('Selected file:')}
-                    {' '}
-                    {selectedTermsOfServicePdfFile.name}
-                  </p>
-                )
-              : null}
-
-            {hasUploadedTermsOfServicePdf
-              && (
-                <div className="
-                  flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/10 p-4
-                  sm:flex-row sm:items-center sm:justify-between
-                "
-                >
-                  <div className="grid gap-1">
-                    <p className="text-sm font-medium">{t('An uploaded Terms of Use PDF is currently active on /tos.')}</p>
-                    <a
-                      href={initialTermsOfServicePdfUrl ?? '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground underline underline-offset-2"
-                    >
-                      {t('Open current PDF')}
-                    </a>
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isPending || isRemovingTermsOfServicePdf}
-                    onClick={handleRemoveTermsOfServicePdf}
-                  >
-                    {isRemovingTermsOfServicePdf ? t('Removing...') : t('Remove uploaded PDF')}
-                  </Button>
-                </div>
-              )}
-
-            <div className="grid gap-3 border-t border-border/50 pt-4">
-              <input type="hidden" name="blocked_countries" value={blockedCountriesValue} />
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="grid gap-1">
-                  <Label>{t('Blocked countries')}</Label>
-                </div>
-
-                <Dialog
-                  open={isBlockedCountriesDialogOpen}
-                  onOpenChange={(nextOpen) => {
-                    setIsBlockedCountriesDialogOpen(nextOpen)
-                    if (!nextOpen) {
-                      setBlockedCountrySearch('')
-                    }
-                  }}
-                >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isPending || isRemovingTermsOfServicePdf}
-                    onClick={() => setIsBlockedCountriesDialogOpen(true)}
-                  >
-                    {blockedCountries.length > 0 ? t('Manage countries') : t('Select countries')}
-                  </Button>
-
-                  <DialogContent className="max-w-2xl sm:max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>{t('Blocked countries')}</DialogTitle>
-                      <DialogDescription>
-                        {t('Search and select the countries where users should not be able to access the platform. If none are selected, the site stays available for everyone.')}
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="grid gap-4">
-                      <div className="relative">
-                        <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          value={blockedCountrySearch}
-                          onChange={event => setBlockedCountrySearch(event.target.value)}
-                          placeholder={t('Search by country or code')}
-                          className="pl-9"
-                        />
-                      </div>
-
-                      {selectedBlockedCountryOptions.length > 0
-                        ? (
-                            <div className="flex flex-wrap gap-2 rounded-xl border border-border/60 bg-muted/20 p-3">
-                              {selectedBlockedCountryOptions.map(option => (
-                                <Badge key={option.code} variant="secondary" className="gap-1.5 pr-1">
-                                  <span>{option.code}</span>
-                                  <button
-                                    type="button"
-                                    className="rounded-sm p-0.5 hover:bg-black/10"
-                                    onClick={() => handleToggleBlockedCountry(option.code, false)}
-                                    aria-label={t('Remove blocked country')}
-                                  >
-                                    <XIcon className="size-3" />
-                                  </button>
-                                </Badge>
-                              ))}
-                            </div>
-                          )
-                        : (
-                            <p className="text-sm text-muted-foreground">
-                              {t('No countries selected yet.')}
-                            </p>
-                          )}
-
-                      <div className="max-h-96 overflow-y-auto rounded-xl border border-border/60">
-                        <div className="divide-y divide-border/60">
-                          {filteredBlockedCountryOptions.map(option => (
-                            <label
-                              key={option.code}
-                              htmlFor={`blocked-country-${option.code}`}
-                              className={cn(
-                                `
-                                  flex cursor-pointer items-center justify-between gap-4 px-4 py-3 transition-colors
-                                  hover:bg-muted/30
-                                `,
-                                blockedCountries.includes(option.code) && 'bg-primary/5',
-                              )}
-                            >
-                              <div className="grid gap-1">
-                                <span className="text-sm font-medium">{option.name}</span>
-                                <span className="font-mono text-xs text-muted-foreground">{option.code}</span>
-                              </div>
-                              <Checkbox
-                                id={`blocked-country-${option.code}`}
-                                checked={blockedCountries.includes(option.code)}
-                                onCheckedChange={checked => handleToggleBlockedCountry(option.code, checked === true)}
-                              />
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <DialogFooter className="sm:justify-between">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        disabled={blockedCountries.length === 0}
-                        onClick={() => setBlockedCountries([])}
-                      >
-                        {t('Clear all')}
-                      </Button>
-                      <Button type="button" onClick={() => setIsBlockedCountriesDialogOpen(false)}>
-                        {t('Done')}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-
-              {selectedBlockedCountryOptions.length > 0
-                ? (
-                    <div className="flex flex-wrap gap-2">
-                      {selectedBlockedCountryOptions.map(option => (
-                        <Badge key={option.code} variant="outline" className="gap-1.5 pr-1">
-                          <span>{option.code}</span>
-                          <button
-                            type="button"
-                            className="rounded-sm p-0.5 hover:bg-black/10"
-                            onClick={() => handleToggleBlockedCountry(option.code, false)}
-                            aria-label={t('Remove blocked country')}
-                          >
-                            <XIcon className="size-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )
-                : (
-                    <p className="text-sm text-muted-foreground">
-                      {t('No blocked countries selected.')}
-                    </p>
-                  )}
-            </div>
-          </div>
-        </SettingsAccordionSection>
-
-        <SettingsAccordionSection
-          value="integrations"
-          isOpen={openSections.includes('integrations')}
-          onToggle={toggleSection}
-          header={<h3 className="text-base font-medium">{t('Integrations')}</h3>}
-        >
-          <div className="grid gap-6">
-            <div className="grid gap-2">
-              <Label htmlFor="theme-google-analytics-id">{t('Google Analytics ID')}</Label>
-              <Input
-                id="theme-google-analytics-id"
-                name="google_analytics_id"
-                maxLength={120}
-                value={googleAnalyticsId}
-                onChange={event => setGoogleAnalyticsId(event.target.value)}
-                disabled={isPending}
-                placeholder={t('G-XXXXXXXXXX (optional)')}
-              />
-            </div>
-
-            <div className="grid gap-6 border-t border-border/50 pt-6">
-              <div className="grid gap-2">
-                <h4 className="text-sm font-medium">{t('OpenRouter integration')}</h4>
-                <Label htmlFor="openrouter_key">{t('API key')}</Label>
-                <Input
-                  id="openrouter_key"
-                  name="openrouter_api_key"
-                  type="password"
-                  autoComplete="off"
-                  maxLength={256}
-                  value={openRouterApiKey}
-                  onChange={event => setOpenRouterApiKey(event.target.value)}
-                  disabled={isPending}
-                  placeholder={
-                    initialOpenRouterApiKeyConfigured && !trimmedOpenRouterApiKey
-                      ? '••••••••••••••••'
-                      : t('Enter OpenRouter API key')
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t('Generate an API key at')}
-                  {' '}
-                  <a
-                    href="https://openrouter.ai/settings/keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-2"
-                  >
-                    openrouter.ai/settings/keys
-                  </a>
-                  .
-                </p>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="openrouter_model">{t('Preferred OpenRouter model')}</Label>
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={openRouterSelectValue}
-                    onValueChange={handleOpenRouterModelChange}
-                    disabled={!openRouterModelSelectEnabled || isPending}
-                  >
-                    <SelectTrigger id="openrouter_model" className="h-12! w-full max-w-md justify-between text-left">
-                      <SelectValue placeholder={t('Select a model')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={AUTOMATIC_MODEL_VALUE}>
-                        {t('Let OpenRouter decide')}
-                      </SelectItem>
-                      {openRouterModelOptions.map(model => (
-                        <SelectItem key={model.id} value={model.id}>
-                          <div className="flex flex-col gap-0.5">
-                            <span>{model.label}</span>
-                            {model.contextWindow
-                              ? (
-                                  <span className="text-xs text-muted-foreground">
-                                    {t('Context window:')}
-                                    {' '}
-                                    {model.contextWindow.toLocaleString()}
-                                  </span>
-                                )
-                              : null}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    className="size-12 shrink-0"
-                    disabled={!trimmedOpenRouterApiKey || isPending || isRefreshingOpenRouterModels}
-                    onClick={handleRefreshOpenRouterModels}
-                    title={t('Refresh models')}
-                    aria-label={t('Refresh models')}
-                  >
-                    <RefreshCwIcon className={cn('size-4', { 'animate-spin': isRefreshingOpenRouterModels })} />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t('Models with live browsing (for example')}
-                  {' '}
-                  <code>perplexity/sonar</code>
-                  {t(') perform best. Explore available models at')}
-                  {' '}
-                  <a
-                    href="https://openrouter.ai/models"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-2"
-                  >
-                    openrouter.ai/models
-                  </a>
-                  .
-                </p>
-                {openRouterModelsError
-                  ? (
-                      <p className="text-xs text-destructive">{openRouterModelsError}</p>
-                    )
-                  : null}
-              </div>
-            </div>
-
-            <div className="grid gap-4 border-t border-border/50 pt-6 md:grid-cols-2">
-              <div className="grid gap-2 md:col-span-2">
-                <h4 className="text-sm font-medium">{t('LI.FI integration')}</h4>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="theme-lifi-integrator">{t('Integrator name')}</Label>
-                <Input
-                  id="theme-lifi-integrator"
-                  name="lifi_integrator"
-                  maxLength={120}
-                  value={lifiIntegrator}
-                  onChange={event => setLifiIntegrator(event.target.value)}
-                  disabled={isPending}
-                  placeholder={t('your-app-id (optional)')}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t('Create an account and generate one at')}
-                  {' '}
-                  <a
-                    href="https://li.fi"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-2"
-                  >
-                    li.fi
-                  </a>
-                  .
-                </p>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="theme-lifi-api-key">{t('API key')}</Label>
-                <Input
-                  id="theme-lifi-api-key"
-                  name="lifi_api_key"
-                  type="password"
-                  autoComplete="off"
-                  maxLength={256}
-                  value={lifiApiKey}
-                  onChange={event => setLifiApiKey(event.target.value)}
-                  disabled={isPending}
-                  placeholder={
-                    initialLiFiApiKeyConfigured && !lifiApiKey.trim()
-                      ? '••••••••••••••••'
-                      : t('Enter API key (optional)')
-                  }
-                />
-                <p className="invisible text-xs text-muted-foreground" aria-hidden="true">
-                  {t('Spacer')}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 border-t border-border/50 pt-6">
-              <div className="flex items-center justify-between gap-3">
-                <div className="grid gap-1">
-                  <h4 className="text-sm font-medium">{t('Custom Integrations')}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {t('Add external scripts to enable features like chat, analytics, tracking, and more')}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isPending || customJavascriptCodes.length >= MAX_CUSTOM_JAVASCRIPT_CODES}
-                  onClick={handleAddCustomJavascriptCode}
-                >
-                  {t('Add Integration')}
-                </Button>
-              </div>
-
-              <div className="grid gap-3">
-                {customJavascriptCodes.length > 0
-                  ? customJavascriptCodes.map((code, index) => (
-                      <div
-                        key={code.id}
-                        className="grid gap-4 rounded-xl border border-border/60 bg-muted/10 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <h4 className="text-sm font-medium">
-                            {code.name.trim() || `${t('Script')} ${index + 1}`}
-                          </h4>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            disabled={isPending}
-                            onClick={() => handleRemoveCustomJavascriptCode(index)}
-                          >
-                            {t('Remove')}
-                          </Button>
-                        </div>
-
-                        <div className="grid gap-4">
-                          <div className="grid gap-2">
-                            <Label htmlFor={`theme-custom-javascript-code-name-${code.id}`}>{t('Name')}</Label>
-                            <Input
-                              id={`theme-custom-javascript-code-name-${code.id}`}
-                              value={code.name}
-                              onChange={event => updateCustomJavascriptCode(index, current => ({
-                                ...current,
-                                name: event.target.value,
-                              }))}
-                              disabled={isPending}
-                              maxLength={MAX_CUSTOM_JAVASCRIPT_CODE_NAME_LENGTH}
-                              placeholder={t('Support widget')}
-                            />
-                          </div>
-
-                          <div className="grid gap-2">
-                            <Label htmlFor={`theme-custom-javascript-code-snippet-${code.id}`}>{t('Paste your JavaScript snippet here')}</Label>
-                            <Textarea
-                              id={`theme-custom-javascript-code-snippet-${code.id}`}
-                              value={code.snippet}
-                              onChange={event => updateCustomJavascriptCode(index, current => ({
-                                ...current,
-                                snippet: event.target.value,
-                              }))}
-                              disabled={isPending}
-                              rows={6}
-                              maxLength={MAX_CUSTOM_JAVASCRIPT_CODE_SNIPPET_LENGTH}
-                              placeholder={'<script src="https://..."></script>'}
-                              className="font-mono text-xs"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid gap-2">
-                          <Label>{t('Disable on')}</Label>
-                          <div className="flex flex-wrap gap-3">
-                            {customJavascriptCodeDisablePageOptions.map((option) => {
-                              const fieldId = `theme-custom-javascript-code-${code.id}-disable-${option.value}`
-                              return (
-                                <label
-                                  key={option.value}
-                                  htmlFor={fieldId}
-                                  className={cn(
-                                    `
-                                      flex min-w-32 cursor-pointer items-center gap-2 rounded-lg border border-border/60
-                                      px-3 py-2 text-sm transition-colors
-                                      hover:bg-muted/40
-                                    `,
-                                    code.disabledOn.includes(option.value) && 'border-primary/50 bg-primary/5',
-                                  )}
-                                >
-                                  <Checkbox
-                                    id={fieldId}
-                                    checked={code.disabledOn.includes(option.value)}
-                                    disabled={isPending}
-                                    onCheckedChange={checked => handleToggleCustomJavascriptCodeDisableOn(index, option.value, checked === true)}
-                                  />
-                                  <span>{option.label}</span>
-                                </label>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  : null}
-              </div>
-            </div>
-          </div>
-        </SettingsAccordionSection>
-
-        <SettingsAccordionSection
-          value="market-fees"
-          isOpen={openSections.includes('market-fees')}
-          onToggle={toggleSection}
-          header={<h3 className="text-base font-medium">{t('Market and fee settings')}</h3>}
-        >
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="theme-fee-recipient-wallet">{t('Your Polygon wallet address to receive transaction fees')}</Label>
-              <Input
-                id="theme-fee-recipient-wallet"
-                name="fee_recipient_wallet"
-                maxLength={42}
-                value={feeRecipientWallet}
-                onChange={event => setFeeRecipientWallet(event.target.value)}
-                disabled={isPending}
-                placeholder={t('0xabc')}
-              />
-            </div>
-
-            <AllowedMarketCreatorsManager disabled={isPending} />
-          </div>
-        </SettingsAccordionSection>
-
+        <MarketFeeSection
+          isPending={isPending}
+          openSections={openSections}
+          onToggleSection={toggleSection}
+          feeRecipientWallet={feeRecipientWallet}
+          setFeeRecipientWallet={setFeeRecipientWallet}
+        />
       </div>
 
       {state.error && <InputError message={state.error} />}
