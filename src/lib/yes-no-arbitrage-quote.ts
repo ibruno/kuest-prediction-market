@@ -1,4 +1,6 @@
 import type { NormalizedBookLevel } from '@/lib/order-panel-utils'
+import { MICRO_UNIT } from '@/lib/constants'
+import { toMicro } from '@/lib/formatters'
 
 interface YesNoArbitrageSegment {
   shares: number
@@ -62,12 +64,22 @@ export function buildYesNoArbitragePreview({
 }
 
 const KUEST_ORDER_SHARE_SCALE = 1_000_000
+const KUEST_ORDER_SHARE_SCALE_BIGINT = BigInt(KUEST_ORDER_SHARE_SCALE)
 
 function normalizeExecutableShares(shares: number) {
   if (!Number.isFinite(shares) || shares <= 0) {
     return 0
   }
   return Math.floor((shares + Number.EPSILON) * KUEST_ORDER_SHARE_SCALE) / KUEST_ORDER_SHARE_SCALE
+}
+
+function getKuestFokMaximumCost(price: number, shares: number) {
+  const priceMicro = BigInt(toMicro(price))
+  const sharesMicro = BigInt(toMicro(shares))
+  const makerAmountMicro = (
+    priceMicro * sharesMicro + KUEST_ORDER_SHARE_SCALE_BIGINT - 1n
+  ) / KUEST_ORDER_SHARE_SCALE_BIGINT
+  return Number(makerAmountMicro) / MICRO_UNIT
 }
 
 function trimYesNoArbitrageQuote(
@@ -108,11 +120,11 @@ function trimYesNoArbitrageQuote(
     edge: shares > 0 ? (shares - totalCost) / shares : 0,
     yesOrder: {
       price: terminalSegment.yesPrice,
-      maximumCost: terminalSegment.yesPrice * shares,
+      maximumCost: getKuestFokMaximumCost(terminalSegment.yesPrice, shares),
     },
     noOrder: {
       price: terminalSegment.noPrice,
-      maximumCost: terminalSegment.noPrice * shares,
+      maximumCost: getKuestFokMaximumCost(terminalSegment.noPrice, shares),
     },
   }
 }
@@ -133,7 +145,13 @@ export function constrainYesNoArbitrageQuoteForKuestFok(
   quote: YesNoArbitrageQuote,
   kuestBalance = Number.POSITIVE_INFINITY,
 ) {
-  if (!Number.isFinite(kuestBalance) || getMaximumRequiredBalance(quote) <= kuestBalance) {
+  if (kuestBalance === Number.POSITIVE_INFINITY) {
+    return quote
+  }
+  if (!Number.isFinite(kuestBalance) || kuestBalance < 0) {
+    return null
+  }
+  if (getMaximumRequiredBalance(quote) <= kuestBalance) {
     return quote
   }
 

@@ -173,6 +173,25 @@ function serializeOrder(order: BlockchainOrder) {
   }
 }
 
+function toStoreOrderInput({
+  order,
+  signature,
+  orderType,
+  clobOrderType,
+  conditionId,
+  slug,
+}: SubmitOrderArgs) {
+  return {
+    ...serializeOrder(order),
+    side: order.side as OrderSide,
+    signature,
+    type: orderType,
+    clob_type: clobOrderType,
+    condition_id: conditionId,
+    slug,
+  }
+}
+
 export async function submitOrder({
   order,
   signature,
@@ -181,25 +200,16 @@ export async function submitOrder({
   conditionId,
   slug,
 }: SubmitOrderArgs) {
-  return storeOrderAction({
-    ...serializeOrder(order),
-    side: order.side as OrderSide,
+  return storeOrderAction(toStoreOrderInput({
+    order,
     signature,
-    type: orderType,
-    clob_type: clobOrderType,
-    condition_id: conditionId,
+    orderType,
+    clobOrderType,
+    conditionId,
     slug,
-  })
+  }))
 }
 
 export async function submitOrders(orders: SubmitOrderArgs[]) {
-  return storeOrdersAction(orders.map(({ order, signature, orderType, clobOrderType, conditionId, slug }) => ({
-    ...serializeOrder(order),
-    side: order.side as OrderSide,
-    signature,
-    type: orderType,
-    clob_type: clobOrderType,
-    condition_id: conditionId,
-    slug,
-  })))
+  return storeOrdersAction(orders.map(toStoreOrderInput))
 }

@@ -205,8 +205,38 @@ describe('submitOrder', () => {
     ])
 
     expect(storeOrdersActionMock).toHaveBeenCalledWith([
-      expect.objectContaining({ salt: '1', token_id: '1', signature: '0xyes' }),
-      expect.objectContaining({ salt: '2', token_id: '2', signature: '0xno' }),
+      {
+        ...baseOrder,
+        salt: '1',
+        token_id: '1',
+        maker_amount: '2',
+        taker_amount: '3',
+        expiration: '4',
+        nonce: '5',
+        fee_rate_bps: '6',
+        timestamp: '7',
+        signature: '0xyes',
+        type: ORDER_TYPE.MARKET,
+        clob_type: undefined,
+        condition_id: 'cond-1',
+        slug: 'event',
+      },
+      {
+        ...baseOrder,
+        salt: '2',
+        token_id: '2',
+        maker_amount: '2',
+        taker_amount: '3',
+        expiration: '4',
+        nonce: '5',
+        fee_rate_bps: '6',
+        timestamp: '7',
+        signature: '0xno',
+        type: ORDER_TYPE.MARKET,
+        clob_type: undefined,
+        condition_id: 'cond-1',
+        slug: 'event',
+      },
     ])
   })
 })

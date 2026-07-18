@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildYesNoArbitragePreview,
   buildYesNoArbitrageQuote,
+  constrainYesNoArbitrageQuoteForKuestFok,
   findMinimumExecutableYesNoArbitrageQuote,
   scaleYesNoArbitrageQuote,
 } from '@/lib/yes-no-arbitrage-quote'
@@ -109,9 +110,37 @@ describe('yes/no arbitrage quotes', () => {
     const fees = Math.max(0, (quote?.yesCost ?? 0) - yesPrincipal)
       + Math.max(0, (quote?.noCost ?? 0) - noPrincipal)
 
-    expect(quote?.shares).toBeCloseTo(9.595959, 6)
+    expect(quote?.shares).toBeCloseTo(9.595958, 6)
     expect(yesPrincipal + noPrincipal + fees).toBeLessThanOrEqual(9.50)
   })
+
+  it('includes the signed FOK micro-unit ceiling in the balance cap', () => {
+    const quote = buildYesNoArbitrageQuote({
+      yesTokenId: 'yes',
+      noTokenId: 'no',
+      yesAsks: [level(0.333333, 0.000001)],
+      noAsks: [level(0.333333, 0.000001)],
+    })!
+    const exactFloatingCost = 0.333333 * 0.000001 * 2
+    const constrained = constrainYesNoArbitrageQuoteForKuestFok(quote, exactFloatingCost)
+
+    expect(quote.yesOrder.maximumCost + quote.noOrder.maximumCost).toBe(0.000002)
+    expect(constrained).toBeNull()
+  })
+
+  it.each([Number.NaN, Number.NEGATIVE_INFINITY, -1])(
+    'rejects an invalid Kuest balance of %s',
+    (kuestBalance) => {
+      const quote = buildYesNoArbitrageQuote({
+        yesTokenId: 'yes',
+        noTokenId: 'no',
+        yesAsks: [level(0.40, 10)],
+        noAsks: [level(0.50, 10)],
+      })!
+
+      expect(constrainYesNoArbitrageQuoteForKuestFok(quote, kuestBalance)).toBeNull()
+    },
+  )
 
   it('scales both legs to exactly the same number of shares', () => {
     const quote = buildYesNoArbitrageQuote({
@@ -141,6 +170,6 @@ describe('yes/no arbitrage quotes', () => {
 
     expect(minimum?.shares).toBeCloseTo(5, 5)
     expect(minimum?.yesOrder.maximumCost).toBeCloseTo(1, 6)
-    expect(minimum?.noOrder.maximumCost).toBeCloseTo(3.5, 6)
+    expect(minimum?.noOrder.maximumCost).toBeCloseTo(3.499998, 6)
   })
 })

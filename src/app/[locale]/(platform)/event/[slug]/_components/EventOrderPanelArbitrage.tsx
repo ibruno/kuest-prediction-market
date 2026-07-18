@@ -13,6 +13,8 @@ import { AnimatedCounter } from 'react-animated-counter'
 import { toast } from 'sonner'
 import { useAccount, useConnections } from 'wagmi'
 import { useOrderBookSummaries } from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderBook'
+import EventOrderPanelAnimatedCents
+  from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelAnimatedCents'
 import EventOrderPanelSubmitButton
   from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelSubmitButton'
 import EventOrderPanelYesNoArbitrage
@@ -123,31 +125,6 @@ function shortAddress(address: string | null) {
   return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''
 }
 
-function AnimatedCents({ value, fontSize = '16px' }: { value: number, fontSize?: string }) {
-  return (
-    <span className="inline-flex items-baseline">
-      <AnimatedCounter
-        value={value}
-        color="currentColor"
-        fontSize={fontSize}
-        includeCommas={false}
-        includeDecimals={!Number.isInteger(value)}
-        decimalPrecision={1}
-        incrementColor="currentColor"
-        decrementColor="currentColor"
-        digitStyles={{ fontWeight: 700, lineHeight: '1' }}
-        containerStyles={{
-          display: 'inline-flex',
-          alignItems: 'baseline',
-          flexDirection: 'row-reverse',
-          lineHeight: '1',
-        }}
-      />
-      <span>¢</span>
-    </span>
-  )
-}
-
 function AnimatedCurrency({ value, fontSize = '20px' }: { value: number, fontSize?: string }) {
   return (
     <span className="inline-flex items-baseline">
@@ -195,6 +172,8 @@ function findPercentForAmount(quote: ArbitrageQuote, amount: number) {
   return (low + high) / 2
 }
 
+type EventOrderPanelPolymarketArbitrageProps = Pick<EventOrderPanelArbitrageProps, 'market' | 'multiWalletEnabled' | 'siteWalletReady' | 'kuestBalance' | 'kuestFeeBps' | 'isSubmitting' | 'submissionStep' | 'onRequireSiteWallet' | 'onSubmit'>
+
 function EventOrderPanelPolymarketArbitrage({
   market,
   multiWalletEnabled,
@@ -205,7 +184,7 @@ function EventOrderPanelPolymarketArbitrage({
   submissionStep,
   onRequireSiteWallet,
   onSubmit,
-}: Omit<EventOrderPanelArbitrageProps, 'onSubmitYesNo'>) {
+}: EventOrderPanelPolymarketArbitrageProps) {
   const t = useExtracted()
   const site = useSiteIdentity()
   const user = useUser()
@@ -981,7 +960,7 @@ function EventOrderPanelPolymarketArbitrage({
                         <span>{executionPreview ? kuestOutcomeLabel : '—'}</span>
                         {executionPreview
                           ? (
-                              <AnimatedCents
+                              <EventOrderPanelAnimatedCents
                                 key={`kuest-${executionPreview.kuestOutcome}`}
                                 value={executionPreview.kuestPrice * 100}
                                 fontSize="20px"
@@ -996,7 +975,7 @@ function EventOrderPanelPolymarketArbitrage({
                         <span>{executionPreview ? polymarketOutcomeLabel : '—'}</span>
                         {executionPreview
                           ? (
-                              <AnimatedCents
+                              <EventOrderPanelAnimatedCents
                                 key={`polymarket-${executionPreview.polymarketOutcome}`}
                                 value={executionPreview.polymarketPrice * 100}
                                 fontSize="20px"
@@ -1024,7 +1003,7 @@ function EventOrderPanelPolymarketArbitrage({
                             <>
                               <span>≈</span>
                               {executionPreview.edge < 0 && <span>−</span>}
-                              <AnimatedCents
+                              <EventOrderPanelAnimatedCents
                                 value={Math.abs(executionPreview.edge) * 100}
                                 fontSize="18px"
                               />
@@ -1316,7 +1295,12 @@ export default function EventOrderPanelArbitrage(props: EventOrderPanelArbitrage
   const hasPolymarketMarket = Boolean(
     props.polymarketEnabled
     && props.market.polymarket_condition_id
-    && props.market.outcomes.filter(outcome => outcome.polymarket_token_id).length >= 2,
+    && props.market.outcomes.some(
+      outcome => outcome.outcome_index === OUTCOME_INDEX.YES && Boolean(outcome.polymarket_token_id),
+    )
+    && props.market.outcomes.some(
+      outcome => outcome.outcome_index === OUTCOME_INDEX.NO && Boolean(outcome.polymarket_token_id),
+    ),
   )
   const [strategy, setStrategy] = useState<'outcome' | 'polymarket'>('outcome')
   const activeStrategy = hasPolymarketMarket ? strategy : 'outcome'
@@ -1328,13 +1312,12 @@ export default function EventOrderPanelArbitrage(props: EventOrderPanelArbitrage
   return (
     <div className="grid gap-4">
       {hasPolymarketMarket && (
-        <div className="grid grid-cols-2 border-b" role="tablist" aria-label={t('Arbitrage strategy')}>
+        <div className="grid grid-cols-2 border-b" role="group" aria-label={t('Arbitrage strategy')}>
           {strategyOptions.map(option => (
             <button
               key={option.value}
               type="button"
-              role="tab"
-              aria-selected={activeStrategy === option.value}
+              aria-pressed={activeStrategy === option.value}
               disabled={props.isSubmitting}
               className={cn(
                 'relative px-3 py-2.5 text-sm font-semibold transition-colors',

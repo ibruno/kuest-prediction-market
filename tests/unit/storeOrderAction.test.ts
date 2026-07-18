@@ -324,9 +324,7 @@ describe('storeOrderAction', () => {
       '/orders',
       expect.any(String),
     )
-    expect(mocks.updateTag).toHaveBeenCalledTimes(4)
-
-    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(mocks.updateTag).toHaveBeenCalledTimes(2)
     expect(mocks.createOrder).toHaveBeenCalledTimes(2)
   })
 

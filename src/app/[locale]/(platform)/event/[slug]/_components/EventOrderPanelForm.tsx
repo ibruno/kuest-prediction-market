@@ -2124,6 +2124,10 @@ export default function EventOrderPanelForm({
     if (!ensureTradingReady() || !activeMarket || !makerAddress || !userAddress) {
       return
     }
+    if (isNegRiskMarket && !isCurrentNegRiskAdapterAddress(negRiskAdapterAddress)) {
+      handleOrderErrorFeedback(t('Trade unavailable'), t('This action is currently unavailable for this market.'))
+      return
+    }
     if (!(quote.totalCost > 0) || !(quote.shares > 0) || !(quote.profit > 0) || quote.totalCost >= quote.payout) {
       toast.error(t('No profitable trade right now'))
       return
@@ -2262,6 +2266,10 @@ export default function EventOrderPanelForm({
           slug: event.slug,
         },
       ])
+      if (batchResult.error && isTradingAuthRequiredError(batchResult.error)) {
+        openTradeRequirements({ forceTradingAuth: true })
+        return
+      }
       const yesResult = batchResult.results?.[0]
       const noResult = batchResult.results?.[1]
       const missingBatchResultError = 'CLOB did not return a result for this order.'

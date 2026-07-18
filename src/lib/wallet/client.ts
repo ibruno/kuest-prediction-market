@@ -77,12 +77,14 @@ export async function signAndSubmitDepositWalletCalls({
   calls,
   metadata,
   signTypedDataAsync,
+  onSigning,
   onSigned,
 }: {
   user: Pick<User, 'address' | 'deposit_wallet_address'>
   calls: WalletCall[]
   metadata?: string
   signTypedDataAsync: SignTypedDataFn
+  onSigning?: () => void
   onSigned?: () => void
 }): Promise<SignAndSubmitDepositWalletCallsResult> {
   if (!user.deposit_wallet_address) {
@@ -108,6 +110,7 @@ export async function signAndSubmitDepositWalletCalls({
       nonce: nonceResult.nonce,
     })
 
+    onSigning?.()
     const signature = await signTypedDataAsync({
       domain: typedData.domain,
       types: typedData.types,

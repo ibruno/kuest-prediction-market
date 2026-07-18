@@ -480,12 +480,12 @@ export async function storeOrdersAction(payloads: StoreOrderInput[]) {
 
   const validated = StoreOrdersSchema.safeParse(payloads)
   if (!validated.success) {
-    return { error: validated.error.issues[0].message, results: null }
+    return { error: await mapClobErrorMessage(null), results: null }
   }
 
   const expectedMaker = normalizeAddress(user.deposit_wallet_address)
   if (!expectedMaker) {
-    return { error: 'Invalid Deposit Wallet address for these orders.', results: null }
+    return { error: await mapClobErrorMessage(null), results: null }
   }
 
   const defaultMarketOrderType = user.settings?.trading?.market_order_type ?? CLOB_ORDER_TYPE.FAK
@@ -495,13 +495,13 @@ export async function storeOrdersAction(payloads: StoreOrderInput[]) {
     const maker = normalizeAddress(data.maker)
     const signer = normalizeAddress(data.signer)
     if (!maker || !signer) {
-      return { error: 'Invalid Deposit Wallet address for these orders.', results: null }
+      return { error: await mapClobErrorMessage(null), results: null }
     }
     if (data.signature_type !== 3) {
-      return { error: 'Orders must use Deposit Wallet signature type.', results: null }
+      return { error: await mapClobErrorMessage(null), results: null }
     }
     if (maker.toLowerCase() !== expectedMaker.toLowerCase() || signer.toLowerCase() !== expectedMaker.toLowerCase()) {
-      return { error: 'Invalid Deposit Wallet maker or signer for these orders.', results: null }
+      return { error: await mapClobErrorMessage(null), results: null }
     }
 
     const clobOrderType = data.clob_type
@@ -580,6 +580,8 @@ export async function storeOrdersAction(payloads: StoreOrderInput[]) {
       return { error: await mapClobErrorMessage(null), results: null }
     }
 
+    const successfulSlugs = new Set<string>()
+    const successfulConditionIds = new Set<string>()
     const results = await Promise.all(payload.map(async (rawResult, index) => {
       if (!isRecord(rawResult)) {
         return { error: await mapClobErrorMessage(null), orderId: null }
@@ -597,24 +599,32 @@ export async function storeOrdersAction(payloads: StoreOrderInput[]) {
       }
 
       const prepared = preparedOrders[index]
-      void OrderRepository.createOrder({
-        ...prepared.data,
-        salt: BigInt(prepared.data.salt),
-        maker_amount: BigInt(prepared.data.maker_amount),
-        taker_amount: BigInt(prepared.data.taker_amount),
-        nonce: BigInt(prepared.data.nonce),
-        fee_rate_bps: Number(prepared.data.fee_rate_bps),
-        expiration: BigInt(prepared.data.expiration),
-        user_id: user.id,
-        affiliate_user_id: user.referred_by_user_id,
-        type: prepared.clobOrderType,
-        clob_order_id: orderId,
-      })
+      try {
+        await OrderRepository.createOrder({
+          ...prepared.data,
+          salt: BigInt(prepared.data.salt),
+          maker_amount: BigInt(prepared.data.maker_amount),
+          taker_amount: BigInt(prepared.data.taker_amount),
+          nonce: BigInt(prepared.data.nonce),
+          fee_rate_bps: Number(prepared.data.fee_rate_bps),
+          expiration: BigInt(prepared.data.expiration),
+          user_id: user.id,
+          affiliate_user_id: user.referred_by_user_id,
+          type: prepared.clobOrderType,
+          clob_order_id: orderId,
+        })
+      }
+      catch (error) {
+        console.error('CLOB accepted a batch order, but local persistence failed.', error)
+      }
 
-      updateTag(cacheTags.activity(prepared.data.slug))
-      updateTag(cacheTags.holders(prepared.data.condition_id))
+      successfulSlugs.add(prepared.data.slug)
+      successfulConditionIds.add(prepared.data.condition_id)
       return { error: null, orderId }
     }))
+
+    successfulSlugs.forEach(slug => updateTag(cacheTags.activity(slug)))
+    successfulConditionIds.forEach(conditionId => updateTag(cacheTags.holders(conditionId)))
 
     return { error: null, results }
   }

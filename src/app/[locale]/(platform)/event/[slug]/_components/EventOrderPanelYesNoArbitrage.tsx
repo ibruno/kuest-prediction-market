@@ -8,6 +8,8 @@ import { useExtracted } from 'next-intl'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatedCounter } from 'react-animated-counter'
 import { useOrderBookSummaries } from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderBook'
+import EventOrderPanelAnimatedCents
+  from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelAnimatedCents'
 import EventOrderPanelSubmitButton
   from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelSubmitButton'
 import { useKuestFeeRate } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useKuestFeeRate'
@@ -89,31 +91,6 @@ function resolveOutcomeTextColor(
     })
   })
   return normalizeHexColor(matchingTeam?.color)
-}
-
-function AnimatedCents({ value, fontSize = '16px' }: { value: number, fontSize?: string }) {
-  return (
-    <span className="inline-flex items-baseline">
-      <AnimatedCounter
-        value={value}
-        color="currentColor"
-        fontSize={fontSize}
-        includeCommas={false}
-        includeDecimals={!Number.isInteger(value)}
-        decimalPrecision={1}
-        incrementColor="currentColor"
-        decrementColor="currentColor"
-        digitStyles={{ fontWeight: 700, lineHeight: '1' }}
-        containerStyles={{
-          display: 'inline-flex',
-          alignItems: 'baseline',
-          flexDirection: 'row-reverse',
-          lineHeight: '1',
-        }}
-      />
-      <span>¢</span>
-    </span>
-  )
 }
 
 function AnimatedCurrency({ value }: { value: number }) {
@@ -243,6 +220,13 @@ export default function EventOrderPanelYesNoArbitrage({
 
   const marketQuote = quotes?.market ?? null
   const executableQuote = quotes?.executable ?? null
+  const isQuoteLoading = canQuote
+    && !marketQuote
+    && (books.isPending || yesFeeRate.isPending || noFeeRate.isPending)
+  const isQuoteError = canQuote
+    && !marketQuote
+    && !isQuoteLoading
+    && (books.isError || yesFeeRate.isError || noFeeRate.isError)
   const quote = siteWalletReady ? executableQuote : marketQuote
   const minimumQuote = useMemo(() => marketQuote
     ? findMinimumExecutableYesNoArbitrageQuote(marketQuote, {
@@ -302,6 +286,20 @@ export default function EventOrderPanelYesNoArbitrage({
   const requiredBalance = (selectedQuote?.yesOrder.maximumCost ?? 0)
     + (selectedQuote?.noOrder.maximumCost ?? 0)
     + selectedFees
+  const selectedQuoteMeetsMinimums = Boolean(
+    selectedQuote
+    && selectedQuote.shares >= MIN_LIMIT_ORDER_SHARES
+    && selectedQuote.yesOrder.maximumCost >= MIN_MARKET_BUY_AMOUNT
+    && selectedQuote.noOrder.maximumCost >= MIN_MARKET_BUY_AMOUNT,
+  )
+  const canSubmitQuote = Boolean(
+    siteWalletReady
+    && executableQuote
+    && selectedQuoteMeetsMinimums
+    && requiredBalance <= kuestBalance + BALANCE_COMPARISON_EPSILON
+    && !isQuoteLoading
+    && !isQuoteError,
+  )
   const selectedReturn = selectedQuote && selectedQuote.totalCost > 0
     ? selectedQuote.profit / selectedQuote.totalCost * 100
     : 0
@@ -372,23 +370,32 @@ export default function EventOrderPanelYesNoArbitrage({
       ? t('Sign {outcome} order · 2/2', { outcome: noOutcomeLabel })
       : submissionStep === 3
         ? t('Submitting orders…')
-        : !hasMarketOpportunity
-            ? t('No profitable trade right now')
-            : !executableQuote
-                ? t('Add funds to trade')
-                : t('Sign orders · 0/2')
+        : isQuoteLoading
+          ? t('Loading...')
+          : isQuoteError
+            ? t('Trade unavailable')
+            : !hasMarketOpportunity
+                ? t('No profitable trade right now')
+                : !executableQuote
+                    ? t('Insufficient USDC balance')
+                    : !canSubmitQuote
+                        ? t('Amount too low')
+                        : t('Sign orders · 0/2')
   const submitButton = (
     <EventOrderPanelSubmitButton
       type="button"
-      className={cn(executableQuote && submissionStep === 0 && 'animate-arbitrage-glow')}
+      className={cn(canSubmitQuote && submissionStep === 0 && 'animate-arbitrage-glow')}
       isLoading={isSubmitting}
-      isDisabled={isSubmitting || !executableQuote}
+      isDisabled={isSubmitting || !canSubmitQuote}
       onClick={handleSubmit}
       label={submitButtonLabel}
       loadingLabel={submitButtonLabel}
     />
   )
-  const submitButtonWithStatus = !hasMarketOpportunity && submissionStep === 0
+  const submitButtonWithStatus = !hasMarketOpportunity
+    && !isQuoteLoading
+    && !isQuoteError
+    && submissionStep === 0
     ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -427,7 +434,7 @@ export default function EventOrderPanelYesNoArbitrage({
               </span>
               <span className="shrink-0">
                 {yesAveragePrice != null
-                  ? <AnimatedCents value={yesAveragePrice * 100} fontSize="20px" />
+                  ? <EventOrderPanelAnimatedCents value={yesAveragePrice * 100} fontSize="20px" />
                   : '—'}
               </span>
             </div>
@@ -440,7 +447,7 @@ export default function EventOrderPanelYesNoArbitrage({
               </span>
               <span className="shrink-0">
                 {noAveragePrice != null
-                  ? <AnimatedCents value={noAveragePrice * 100} fontSize="20px" />
+                  ? <EventOrderPanelAnimatedCents value={noAveragePrice * 100} fontSize="20px" />
                   : '—'}
               </span>
             </div>
@@ -463,7 +470,7 @@ export default function EventOrderPanelYesNoArbitrage({
                     <>
                       <span>≈</span>
                       {displayEdge < 0 && <span>−</span>}
-                      <AnimatedCents value={Math.abs(displayEdge) * 100} fontSize="18px" />
+                      <EventOrderPanelAnimatedCents value={Math.abs(displayEdge) * 100} fontSize="18px" />
                     </>
                   )
                 : <span>—</span>}

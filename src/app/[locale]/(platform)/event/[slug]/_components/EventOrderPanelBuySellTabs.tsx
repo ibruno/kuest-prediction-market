@@ -53,8 +53,7 @@ function OrderPanelTab({ activeTone = 'primary', label, selected, onSelect }: Or
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={selected}
+      aria-pressed={selected}
       className={cn(
         'relative px-2 py-2.5 text-sm font-semibold transition-colors',
         selected
@@ -162,12 +161,18 @@ export default function EventOrderPanelBuySellTabs({
   useOrderTypePersistence(type)
 
   function handleSideChange(nextSide: OrderSide) {
+    if (side === nextSide) {
+      return
+    }
     onSideChange(nextSide)
     onAmountReset()
     onFocusInput()
   }
 
   function handleTradingTypeChange(nextType: OrderType) {
+    if (mode === 'trade' && type === nextType) {
+      return
+    }
     onModeChange('trade')
     onTypeChange(nextType)
   }
@@ -177,7 +182,7 @@ export default function EventOrderPanelBuySellTabs({
       <div className="flex border-b">
         <div
           className={cn('grid flex-1', showArbitrage ? 'grid-cols-3' : 'grid-cols-2')}
-          role="tablist"
+          role="group"
           aria-label={showArbitrage
             ? `${t('Market')}, ${t('Arbitrage')}, ${t('Limit')}`
             : `${t('Market')}, ${t('Limit')}`}
@@ -260,7 +265,7 @@ export default function EventOrderPanelBuySellTabs({
       {mode === 'trade' && (
         <div
           className="grid grid-cols-2 border-b"
-          role="tablist"
+          role="group"
           aria-label={`${t('Buy')} / ${t('Sell')}`}
         >
           <OrderPanelTab

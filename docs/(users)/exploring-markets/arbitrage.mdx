@@ -145,7 +145,10 @@ Suppose 100 matched pairs are available at these executable prices:
 
 The formula is:
 
-**Matched shares × ($1.00 − combined executable cost − fees) = estimated profit**
+**Matched shares × ($1.00 − combined executable price − fees per matched pair) = estimated profit**
+
+For the example: **100 × ($1.00 − $0.95 − $0.01) = $4.00**. The displayed
+**$1.00 estimated fees** is the total for all 100 matched pairs.
 
 <Callout type="warning" title="The numbers above are illustrative">
   Always use the live quote in the order panel. It calculates the available prices across
@@ -231,8 +234,8 @@ resolution.
   </Accordion>
 
   <Accordion title="Why is Max lower than my balance?" value="maximum-amount">
-    Max stops where either balance, minimum order rules, or profitable liquidity can no
-    longer support the same number of shares on both legs.
+    Max is limited by your available balance, profitable liquidity shared by both legs,
+    and the exact fill-or-kill order amounts after exchange quantization.
   </Accordion>
 
   <Accordion title="Can I sell before resolution?" value="exit-early">
