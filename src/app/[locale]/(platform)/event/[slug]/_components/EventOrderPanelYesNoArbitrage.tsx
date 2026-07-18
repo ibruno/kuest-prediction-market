@@ -286,6 +286,8 @@ export default function EventOrderPanelYesNoArbitrage({
   const requiredBalance = (selectedQuote?.yesOrder.maximumCost ?? 0)
     + (selectedQuote?.noOrder.maximumCost ?? 0)
     + selectedFees
+  const isAmountAboveMax = Number.isFinite(requestedAmount)
+    && requestedAmount > maxAmount + BALANCE_COMPARISON_EPSILON
   const selectedQuoteMeetsMinimums = Boolean(
     selectedQuote
     && selectedQuote.shares >= MIN_LIMIT_ORDER_SHARES
@@ -295,6 +297,7 @@ export default function EventOrderPanelYesNoArbitrage({
   const canSubmitQuote = Boolean(
     siteWalletReady
     && executableQuote
+    && !isAmountAboveMax
     && selectedQuoteMeetsMinimums
     && requiredBalance <= kuestBalance + BALANCE_COMPARISON_EPSILON
     && !isQuoteLoading
@@ -378,9 +381,13 @@ export default function EventOrderPanelYesNoArbitrage({
                 ? t('No profitable trade right now')
                 : !executableQuote
                     ? t('Insufficient USDC balance')
-                    : !canSubmitQuote
-                        ? t('Amount too low')
-                        : t('Sign orders · 0/2')
+                    : !minimumQuote
+                        ? t('No liquidity for this market order')
+                        : isAmountAboveMax
+                          ? `${t('Max')}: ${formatCurrency(maxAmount)}`
+                          : !canSubmitQuote
+                              ? t('Amount too low')
+                              : t('Sign orders · 0/2')
   const submitButton = (
     <EventOrderPanelSubmitButton
       type="button"

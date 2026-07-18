@@ -9,14 +9,16 @@ export default function EventOrderPanelAnimatedCents({
   value: number
   fontSize?: string
 }) {
+  const normalizedValue = Number.isFinite(value) ? Number(value.toFixed(1)) : 0
+
   return (
     <span className="inline-flex items-baseline">
       <AnimatedCounter
-        value={value}
+        value={normalizedValue}
         color="currentColor"
         fontSize={fontSize}
         includeCommas={false}
-        includeDecimals={!Number.isInteger(value)}
+        includeDecimals={!Number.isInteger(normalizedValue)}
         decimalPrecision={1}
         incrementColor="currentColor"
         decrementColor="currentColor"
