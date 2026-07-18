@@ -384,7 +384,7 @@ export default function EventOrderPanelYesNoArbitrage({
                     : !minimumQuote
                         ? t('No liquidity for this market order')
                         : isAmountAboveMax
-                          ? `${t('Max')}: ${formatCurrency(maxAmount)}`
+                          ? t('Max: {amount}', { amount: formatCurrency(maxAmount) })
                           : !canSubmitQuote
                               ? t('Amount too low')
                               : t('Sign orders · 0/2')
