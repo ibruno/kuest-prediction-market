@@ -2,7 +2,7 @@
 
 import type { EventOrderPanelOutcomeSelectedAccent } from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelOutcomeButton'
 import type { ArbitrageQuote } from '@/lib/arbitrage-quote'
-import type { YesNoArbitrageQuote } from '@/lib/yes-no-arbitrage-quote'
+import type { OutcomeArbitrageQuote } from '@/lib/outcome-arbitrage-quote'
 import type { Market, SportsTeam } from '@/types'
 import { useAppKit, useAppKitAccount, useAppKitConnection, useAppKitState } from '@reown/appkit/react'
 import { InfoIcon, TriangleAlertIcon, UnplugIcon } from 'lucide-react'
@@ -15,10 +15,10 @@ import { useAccount, useConnections } from 'wagmi'
 import { useOrderBookSummaries } from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderBook'
 import EventOrderPanelAnimatedCents
   from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelAnimatedCents'
+import EventOrderPanelOutcomeArbitrage
+  from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelOutcomeArbitrage'
 import EventOrderPanelSubmitButton
   from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelSubmitButton'
-import EventOrderPanelYesNoArbitrage
-  from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelYesNoArbitrage'
 import { useKuestFeeRate } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useKuestFeeRate'
 import { Button } from '@/components/ui/button'
 import {
@@ -74,7 +74,7 @@ interface EventOrderPanelArbitrageProps {
   submissionStep: 0 | 1 | 2 | 3
   onRequireSiteWallet: () => void
   onSubmit: (quote: ArbitrageQuote, polymarketMinimumOrderSize: number) => void
-  onSubmitYesNo: (quote: YesNoArbitrageQuote) => void
+  onSubmitOutcome: (quote: OutcomeArbitrageQuote) => void
 }
 
 interface ArbitragePricePreview {
@@ -1344,7 +1344,7 @@ export default function EventOrderPanelArbitrage(props: EventOrderPanelArbitrage
       {activeStrategy === 'polymarket'
         ? <EventOrderPanelPolymarketArbitrage {...props} />
         : (
-            <EventOrderPanelYesNoArbitrage
+            <EventOrderPanelOutcomeArbitrage
               market={props.market}
               yesOutcomeLabel={props.yesOutcomeLabel}
               noOutcomeLabel={props.noOutcomeLabel}
@@ -1357,7 +1357,7 @@ export default function EventOrderPanelArbitrage(props: EventOrderPanelArbitrage
               isSubmitting={props.isSubmitting}
               submissionStep={props.submissionStep}
               onRequireSiteWallet={props.onRequireSiteWallet}
-              onSubmit={props.onSubmitYesNo}
+              onSubmit={props.onSubmitOutcome}
             />
           )}
     </div>

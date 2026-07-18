@@ -6,7 +6,7 @@ import type {
 } from '@/app/[locale]/(platform)/event/[slug]/_types/EventOrderPanelTypes'
 import type { PortfolioUserOpenOrder } from '@/app/[locale]/(platform)/portfolio/_types/PortfolioOpenOrdersTypes'
 import type { ArbitrageQuote } from '@/lib/arbitrage-quote'
-import type { YesNoArbitrageQuote } from '@/lib/yes-no-arbitrage-quote'
+import type { OutcomeArbitrageQuote } from '@/lib/outcome-arbitrage-quote'
 import type { Event, Market, Outcome, UserPosition } from '@/types'
 import { useAppKitAccount } from '@reown/appkit/react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -2120,7 +2120,7 @@ export default function EventOrderPanelForm({
     }
   }
 
-  async function handleYesNoArbitrageSubmit(quote: YesNoArbitrageQuote) {
+  async function handleOutcomeArbitrageSubmit(quote: OutcomeArbitrageQuote) {
     if (!ensureTradingReady() || !activeMarket || !makerAddress || !userAddress) {
       return
     }
@@ -2281,7 +2281,7 @@ export default function EventOrderPanelForm({
         invalidateTradingClaimQueries(queryClient)
       }
       if (yesError || noError) {
-        console.error('Yes/No arbitrage submission completed with an unmatched leg.', { yesError, noError })
+        console.error('Outcome arbitrage submission completed with an unmatched leg.', { yesError, noError })
         const errorDescription = getArbitrageSubmissionErrorMessage(yesError || noError)
         if (yesError && noError) {
           toast.error(t('Both orders failed. No trade was completed.'), { description: errorDescription })
@@ -2321,7 +2321,7 @@ export default function EventOrderPanelForm({
       triggerConfetti('primary')
     }
     catch (error) {
-      console.error('Failed to sign Yes/No arbitrage orders.', error)
+      console.error('Failed to sign outcome arbitrage orders.', error)
       if (isUserRejectedRequestError(error)) {
         toast.info(t('Order signing was cancelled.'))
       }
@@ -2439,7 +2439,7 @@ export default function EventOrderPanelForm({
                           openTradeRequirements({ forceTradingAuth: true })
                         }}
                         onSubmit={(quote, minimumOrderSize) => void handleArbitrageSubmit(quote, minimumOrderSize)}
-                        onSubmitYesNo={quote => void handleYesNoArbitrageSubmit(quote)}
+                        onSubmitOutcome={quote => void handleOutcomeArbitrageSubmit(quote)}
                       />
                     )
                   : (

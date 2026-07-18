@@ -1,20 +1,20 @@
 import type { NormalizedBookLevel } from '@/lib/order-panel-utils'
 import { describe, expect, it } from 'vitest'
 import {
-  buildYesNoArbitragePreview,
-  buildYesNoArbitrageQuote,
-  constrainYesNoArbitrageQuoteForKuestFok,
-  findMinimumExecutableYesNoArbitrageQuote,
-  scaleYesNoArbitrageQuote,
-} from '@/lib/yes-no-arbitrage-quote'
+  buildOutcomeArbitragePreview,
+  buildOutcomeArbitrageQuote,
+  constrainOutcomeArbitrageQuoteForKuestFok,
+  findMinimumExecutableOutcomeArbitrageQuote,
+  scaleOutcomeArbitrageQuote,
+} from '@/lib/outcome-arbitrage-quote'
 
 function level(priceDollars: number, size: number): NormalizedBookLevel {
   return { priceCents: priceDollars * 100, priceDollars, size }
 }
 
-describe('yes/no arbitrage quotes', () => {
+describe('outcome arbitrage quotes', () => {
   it('previews both best asks and their negative edge when no arbitrage is available', () => {
-    const preview = buildYesNoArbitragePreview({
+    const preview = buildOutcomeArbitragePreview({
       yesAsks: [level(0.83, 50)],
       noAsks: [level(0.20, 50)],
       yesFeeBps: 100,
@@ -27,7 +27,7 @@ describe('yes/no arbitrage quotes', () => {
   })
 
   it('previews an available side even while the opposite order book is empty', () => {
-    const preview = buildYesNoArbitragePreview({
+    const preview = buildOutcomeArbitragePreview({
       yesAsks: [level(0.42, 10)],
       noAsks: [],
       yesFeeBps: null,
@@ -38,7 +38,7 @@ describe('yes/no arbitrage quotes', () => {
   })
 
   it('pairs YES and NO liquidity while their combined cost stays below one dollar', () => {
-    const quote = buildYesNoArbitrageQuote({
+    const quote = buildOutcomeArbitrageQuote({
       yesTokenId: 'yes',
       noTokenId: 'no',
       yesAsks: [level(0.40, 10), level(0.52, 10)],
@@ -53,7 +53,7 @@ describe('yes/no arbitrage quotes', () => {
   })
 
   it('removes an opportunity that disappears after both Kuest fees', () => {
-    const quote = buildYesNoArbitrageQuote({
+    const quote = buildOutcomeArbitrageQuote({
       yesTokenId: 'yes',
       noTokenId: 'no',
       yesAsks: [level(0.495, 10)],
@@ -66,7 +66,7 @@ describe('yes/no arbitrage quotes', () => {
   })
 
   it('deducts the combined market and builder fees from both buy legs', () => {
-    const quote = buildYesNoArbitrageQuote({
+    const quote = buildOutcomeArbitrageQuote({
       yesTokenId: 'yes',
       noTokenId: 'no',
       yesAsks: [level(0.40, 10)],
@@ -81,7 +81,7 @@ describe('yes/no arbitrage quotes', () => {
   })
 
   it('limits Max by the shared balance required by both FOK price caps', () => {
-    const quote = buildYesNoArbitrageQuote({
+    const quote = buildOutcomeArbitrageQuote({
       yesTokenId: 'yes',
       noTokenId: 'no',
       yesAsks: [level(0.30, 10), level(0.40, 10)],
@@ -95,7 +95,7 @@ describe('yes/no arbitrage quotes', () => {
   })
 
   it('includes both outcome fees when constraining Max to the shared balance', () => {
-    const quote = buildYesNoArbitrageQuote({
+    const quote = buildOutcomeArbitrageQuote({
       yesTokenId: 'yes',
       noTokenId: 'no',
       yesAsks: [level(0.40, 10)],
@@ -115,14 +115,14 @@ describe('yes/no arbitrage quotes', () => {
   })
 
   it('includes the signed FOK micro-unit ceiling in the balance cap', () => {
-    const quote = buildYesNoArbitrageQuote({
+    const quote = buildOutcomeArbitrageQuote({
       yesTokenId: 'yes',
       noTokenId: 'no',
       yesAsks: [level(0.333333, 0.000001)],
       noAsks: [level(0.333333, 0.000001)],
     })!
     const exactFloatingCost = 0.333333 * 0.000001 * 2
-    const constrained = constrainYesNoArbitrageQuoteForKuestFok(quote, exactFloatingCost)
+    const constrained = constrainOutcomeArbitrageQuoteForKuestFok(quote, exactFloatingCost)
 
     expect(quote.yesOrder.maximumCost + quote.noOrder.maximumCost).toBe(0.000002)
     expect(constrained).toBeNull()
@@ -131,25 +131,25 @@ describe('yes/no arbitrage quotes', () => {
   it.each([Number.NaN, Number.NEGATIVE_INFINITY, -1])(
     'rejects an invalid Kuest balance of %s',
     (kuestBalance) => {
-      const quote = buildYesNoArbitrageQuote({
+      const quote = buildOutcomeArbitrageQuote({
         yesTokenId: 'yes',
         noTokenId: 'no',
         yesAsks: [level(0.40, 10)],
         noAsks: [level(0.50, 10)],
       })!
 
-      expect(constrainYesNoArbitrageQuoteForKuestFok(quote, kuestBalance)).toBeNull()
+      expect(constrainOutcomeArbitrageQuoteForKuestFok(quote, kuestBalance)).toBeNull()
     },
   )
 
   it('scales both legs to exactly the same number of shares', () => {
-    const quote = buildYesNoArbitrageQuote({
+    const quote = buildOutcomeArbitrageQuote({
       yesTokenId: 'yes',
       noTokenId: 'no',
       yesAsks: [level(0.40, 20)],
       noAsks: [level(0.50, 20)],
     })
-    const scaled = scaleYesNoArbitrageQuote(quote!, 25)
+    const scaled = scaleOutcomeArbitrageQuote(quote!, 25)
 
     expect(scaled?.shares).toBe(5)
     expect(scaled?.yesOrder.maximumCost).toBe(2)
@@ -157,13 +157,13 @@ describe('yes/no arbitrage quotes', () => {
   })
 
   it('finds the smallest pair accepted by both market-order minimums', () => {
-    const quote = buildYesNoArbitrageQuote({
+    const quote = buildOutcomeArbitrageQuote({
       yesTokenId: 'yes',
       noTokenId: 'no',
       yesAsks: [level(0.20, 100)],
       noAsks: [level(0.70, 100)],
     })
-    const minimum = findMinimumExecutableYesNoArbitrageQuote(quote!, {
+    const minimum = findMinimumExecutableOutcomeArbitrageQuote(quote!, {
       minimumShares: 1,
       minimumOrderAmount: 1,
     })

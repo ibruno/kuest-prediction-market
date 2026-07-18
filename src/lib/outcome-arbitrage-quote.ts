@@ -2,7 +2,7 @@ import type { NormalizedBookLevel } from '@/lib/order-panel-utils'
 import { MICRO_UNIT } from '@/lib/constants'
 import { toMicro } from '@/lib/formatters'
 
-interface YesNoArbitrageSegment {
+interface OutcomeArbitrageSegment {
   shares: number
   yesPrice: number
   noPrice: number
@@ -10,7 +10,7 @@ interface YesNoArbitrageSegment {
   noUnitCost: number
 }
 
-export interface YesNoArbitrageQuote {
+export interface OutcomeArbitrageQuote {
   yesTokenId: string
   noTokenId: string
   edge: number
@@ -20,7 +20,7 @@ export interface YesNoArbitrageQuote {
   totalCost: number
   payout: number
   profit: number
-  segments: YesNoArbitrageSegment[]
+  segments: OutcomeArbitrageSegment[]
   yesOrder: {
     price: number
     maximumCost: number
@@ -31,13 +31,13 @@ export interface YesNoArbitrageQuote {
   }
 }
 
-export interface YesNoArbitragePreview {
+export interface OutcomeArbitragePreview {
   yesPrice: number | null
   noPrice: number | null
   edge: number | null
 }
 
-export function buildYesNoArbitragePreview({
+export function buildOutcomeArbitragePreview({
   yesAsks,
   noAsks,
   yesFeeBps,
@@ -47,7 +47,7 @@ export function buildYesNoArbitragePreview({
   noAsks: NormalizedBookLevel[]
   yesFeeBps: number | null
   noFeeBps: number | null
-}): YesNoArbitragePreview | null {
+}): OutcomeArbitragePreview | null {
   const yesPrice = yesAsks.find(level => level.size > 0)?.priceDollars ?? null
   const noPrice = noAsks.find(level => level.size > 0)?.priceDollars ?? null
   if (yesPrice == null && noPrice == null) {
@@ -82,12 +82,12 @@ function getKuestFokMaximumCost(price: number, shares: number) {
   return Number(makerAmountMicro) / MICRO_UNIT
 }
 
-function trimYesNoArbitrageQuote(
-  quote: YesNoArbitrageQuote,
+function trimOutcomeArbitrageQuote(
+  quote: OutcomeArbitrageQuote,
   targetShares: number,
-): YesNoArbitrageQuote | null {
+): OutcomeArbitrageQuote | null {
   let remainingShares = normalizeExecutableShares(targetShares)
-  const segments: YesNoArbitrageSegment[] = []
+  const segments: OutcomeArbitrageSegment[] = []
 
   for (const segment of quote.segments) {
     const shares = Math.min(segment.shares, remainingShares)
@@ -129,7 +129,7 @@ function trimYesNoArbitrageQuote(
   }
 }
 
-function getMaximumRequiredBalance(quote: YesNoArbitrageQuote) {
+function getMaximumRequiredBalance(quote: OutcomeArbitrageQuote) {
   const yesFees = Math.max(0, quote.yesCost - quote.segments.reduce(
     (total, segment) => total + segment.shares * segment.yesPrice,
     0,
@@ -141,8 +141,8 @@ function getMaximumRequiredBalance(quote: YesNoArbitrageQuote) {
   return quote.yesOrder.maximumCost + quote.noOrder.maximumCost + yesFees + noFees
 }
 
-export function constrainYesNoArbitrageQuoteForKuestFok(
-  quote: YesNoArbitrageQuote,
+export function constrainOutcomeArbitrageQuoteForKuestFok(
+  quote: OutcomeArbitrageQuote,
   kuestBalance = Number.POSITIVE_INFINITY,
 ) {
   if (kuestBalance === Number.POSITIVE_INFINITY) {
@@ -159,7 +159,7 @@ export function constrainYesNoArbitrageQuoteForKuestFok(
   let highShares = quote.shares
   for (let iteration = 0; iteration < 40; iteration += 1) {
     const middleShares = (lowShares + highShares) / 2
-    const candidate = trimYesNoArbitrageQuote(quote, middleShares)
+    const candidate = trimOutcomeArbitrageQuote(quote, middleShares)
     if (candidate && getMaximumRequiredBalance(candidate) <= kuestBalance) {
       lowShares = candidate.shares
     }
@@ -168,11 +168,11 @@ export function constrainYesNoArbitrageQuoteForKuestFok(
     }
   }
 
-  const constrained = trimYesNoArbitrageQuote(quote, lowShares)
+  const constrained = trimOutcomeArbitrageQuote(quote, lowShares)
   return constrained?.profit && constrained.profit > 0 ? constrained : null
 }
 
-export function buildYesNoArbitrageQuote({
+export function buildOutcomeArbitrageQuote({
   yesTokenId,
   noTokenId,
   yesAsks,
@@ -188,12 +188,12 @@ export function buildYesNoArbitrageQuote({
   kuestBalance?: number
   yesFeeBps?: number
   noFeeBps?: number
-}): YesNoArbitrageQuote | null {
+}): OutcomeArbitrageQuote | null {
   let yesIndex = 0
   let noIndex = 0
   let yesLevelRemaining = yesAsks[0]?.size ?? 0
   let noLevelRemaining = noAsks[0]?.size ?? 0
-  const segments: YesNoArbitrageSegment[] = []
+  const segments: OutcomeArbitrageSegment[] = []
 
   while (yesIndex < yesAsks.length && noIndex < noAsks.length) {
     const yesLevel = yesAsks[yesIndex]
@@ -237,7 +237,7 @@ export function buildYesNoArbitrageQuote({
     return null
   }
 
-  const rawQuote = trimYesNoArbitrageQuote({
+  const rawQuote = trimOutcomeArbitrageQuote({
     yesTokenId,
     noTokenId,
     edge: 0,
@@ -253,19 +253,19 @@ export function buildYesNoArbitrageQuote({
   }, segments.reduce((total, segment) => total + segment.shares, 0))
 
   return rawQuote
-    ? constrainYesNoArbitrageQuoteForKuestFok(rawQuote, kuestBalance)
+    ? constrainOutcomeArbitrageQuoteForKuestFok(rawQuote, kuestBalance)
     : null
 }
 
-export function scaleYesNoArbitrageQuote(quote: YesNoArbitrageQuote, percent: number) {
-  return trimYesNoArbitrageQuote(
+export function scaleOutcomeArbitrageQuote(quote: OutcomeArbitrageQuote, percent: number) {
+  return trimOutcomeArbitrageQuote(
     quote,
     quote.shares * Math.min(100, Math.max(0, percent)) / 100,
   )
 }
 
-export function findMinimumExecutableYesNoArbitrageQuote(
-  quote: YesNoArbitrageQuote,
+export function findMinimumExecutableOutcomeArbitrageQuote(
+  quote: OutcomeArbitrageQuote,
   {
     minimumShares,
     minimumOrderAmount,
@@ -274,7 +274,7 @@ export function findMinimumExecutableYesNoArbitrageQuote(
     minimumOrderAmount: number
   },
 ) {
-  function meetsMinimum(candidate: YesNoArbitrageQuote | null) {
+  function meetsMinimum(candidate: OutcomeArbitrageQuote | null) {
     return Boolean(
       candidate
       && candidate.shares >= minimumShares
@@ -291,7 +291,7 @@ export function findMinimumExecutableYesNoArbitrageQuote(
   let highShares = quote.shares
   for (let iteration = 0; iteration < 40; iteration += 1) {
     const middleShares = (lowShares + highShares) / 2
-    const candidate = trimYesNoArbitrageQuote(quote, middleShares)
+    const candidate = trimOutcomeArbitrageQuote(quote, middleShares)
     if (meetsMinimum(candidate)) {
       highShares = candidate?.shares ?? middleShares
     }
@@ -306,7 +306,7 @@ export function findMinimumExecutableYesNoArbitrageQuote(
     Math.ceil(highShares * KUEST_ORDER_SHARE_SCALE) + 2,
   )
   for (let shareUnits = firstShareUnit; shareUnits <= lastShareUnit; shareUnits += 1) {
-    const candidate = trimYesNoArbitrageQuote(quote, shareUnits / KUEST_ORDER_SHARE_SCALE)
+    const candidate = trimOutcomeArbitrageQuote(quote, shareUnits / KUEST_ORDER_SHARE_SCALE)
     if (meetsMinimum(candidate)) {
       return candidate
     }

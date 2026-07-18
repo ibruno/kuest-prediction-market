@@ -1,7 +1,7 @@
 'use client'
 
 import type { EventOrderPanelOutcomeSelectedAccent } from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelOutcomeButton'
-import type { YesNoArbitrageQuote } from '@/lib/yes-no-arbitrage-quote'
+import type { OutcomeArbitrageQuote } from '@/lib/outcome-arbitrage-quote'
 import type { Market, SportsTeam } from '@/types'
 import { InfoIcon, TriangleAlertIcon } from 'lucide-react'
 import { useExtracted } from 'next-intl'
@@ -20,20 +20,20 @@ import { OUTCOME_INDEX } from '@/lib/constants'
 import { formatCurrency } from '@/lib/formatters'
 import { normalizeBookLevels } from '@/lib/order-panel-utils'
 import { MIN_LIMIT_ORDER_SHARES, MIN_MARKET_BUY_AMOUNT } from '@/lib/orders/validation'
-import { cn } from '@/lib/utils'
 import {
-  buildYesNoArbitragePreview,
-  buildYesNoArbitrageQuote,
-  constrainYesNoArbitrageQuoteForKuestFok,
-  findMinimumExecutableYesNoArbitrageQuote,
-  scaleYesNoArbitrageQuote,
-} from '@/lib/yes-no-arbitrage-quote'
+  buildOutcomeArbitragePreview,
+  buildOutcomeArbitrageQuote,
+  constrainOutcomeArbitrageQuoteForKuestFok,
+  findMinimumExecutableOutcomeArbitrageQuote,
+  scaleOutcomeArbitrageQuote,
+} from '@/lib/outcome-arbitrage-quote'
+import { cn } from '@/lib/utils'
 
 const BALANCE_COMPARISON_EPSILON = 1e-8
 const CURRENCY_SCALE = 100
 type AmountPreset = 'min' | 'mid' | 'max'
 
-interface EventOrderPanelYesNoArbitrageProps {
+interface EventOrderPanelOutcomeArbitrageProps {
   market: Market
   yesOutcomeLabel: string
   noOutcomeLabel: string
@@ -46,7 +46,7 @@ interface EventOrderPanelYesNoArbitrageProps {
   isSubmitting: boolean
   submissionStep: 0 | 1 | 2 | 3
   onRequireSiteWallet: () => void
-  onSubmit: (quote: YesNoArbitrageQuote) => void
+  onSubmit: (quote: OutcomeArbitrageQuote) => void
 }
 
 function normalizeHexColor(value: string | null | undefined) {
@@ -118,7 +118,7 @@ function AnimatedCurrency({ value }: { value: number }) {
   )
 }
 
-function findPercentForAmount(quote: YesNoArbitrageQuote, amount: number) {
+function findPercentForAmount(quote: OutcomeArbitrageQuote, amount: number) {
   if (!(amount > 0) || !(quote.totalCost > 0)) {
     return 0
   }
@@ -130,7 +130,7 @@ function findPercentForAmount(quote: YesNoArbitrageQuote, amount: number) {
   let high = 100
   for (let index = 0; index < 24; index += 1) {
     const middle = (low + high) / 2
-    const candidate = scaleYesNoArbitrageQuote(quote, middle)
+    const candidate = scaleOutcomeArbitrageQuote(quote, middle)
     if ((candidate?.totalCost ?? 0) < amount) {
       low = middle
     }
@@ -141,7 +141,7 @@ function findPercentForAmount(quote: YesNoArbitrageQuote, amount: number) {
   return (low + high) / 2
 }
 
-export default function EventOrderPanelYesNoArbitrage({
+export default function EventOrderPanelOutcomeArbitrage({
   market,
   yesOutcomeLabel,
   noOutcomeLabel,
@@ -155,7 +155,7 @@ export default function EventOrderPanelYesNoArbitrage({
   submissionStep,
   onRequireSiteWallet,
   onSubmit,
-}: EventOrderPanelYesNoArbitrageProps) {
+}: EventOrderPanelOutcomeArbitrageProps) {
   const t = useExtracted()
   const [amountPreset, setAmountPreset] = useState<AmountPreset | null>(null)
   const [amountDraft, setAmountDraft] = useState<string | null>(null)
@@ -181,7 +181,7 @@ export default function EventOrderPanelYesNoArbitrage({
   )
   const totalYesFeeBps = yesFeeRate.data == null ? null : kuestFeeBps + yesFeeRate.data
   const totalNoFeeBps = noFeeRate.data == null ? null : kuestFeeBps + noFeeRate.data
-  const pricePreview = useMemo(() => buildYesNoArbitragePreview({
+  const pricePreview = useMemo(() => buildOutcomeArbitragePreview({
     yesAsks,
     noAsks,
     yesFeeBps: totalYesFeeBps,
@@ -201,9 +201,9 @@ export default function EventOrderPanelYesNoArbitrage({
       noFeeBps: totalNoFeeBps,
     }
     return {
-      market: buildYesNoArbitrageQuote(input),
+      market: buildOutcomeArbitrageQuote(input),
       executable: siteWalletReady
-        ? buildYesNoArbitrageQuote({ ...input, kuestBalance })
+        ? buildOutcomeArbitrageQuote({ ...input, kuestBalance })
         : null,
     }
   }, [
@@ -229,13 +229,13 @@ export default function EventOrderPanelYesNoArbitrage({
     && (books.isError || yesFeeRate.isError || noFeeRate.isError)
   const quote = siteWalletReady ? executableQuote : marketQuote
   const minimumQuote = useMemo(() => marketQuote
-    ? findMinimumExecutableYesNoArbitrageQuote(marketQuote, {
+    ? findMinimumExecutableOutcomeArbitrageQuote(marketQuote, {
         minimumShares: MIN_LIMIT_ORDER_SHARES,
         minimumOrderAmount: MIN_MARKET_BUY_AMOUNT,
       })
     : null, [marketQuote])
   const maximumQuote = useMemo(() => quote
-    ? constrainYesNoArbitrageQuoteForKuestFok(
+    ? constrainOutcomeArbitrageQuoteForKuestFok(
         quote,
         siteWalletReady ? kuestBalance : Number.POSITIVE_INFINITY,
       )
@@ -264,9 +264,9 @@ export default function EventOrderPanelYesNoArbitrage({
     if (!quote) {
       return null
     }
-    const scaled = scaleYesNoArbitrageQuote(quote, effectivePercent)
+    const scaled = scaleOutcomeArbitrageQuote(quote, effectivePercent)
     return scaled
-      ? constrainYesNoArbitrageQuoteForKuestFok(
+      ? constrainOutcomeArbitrageQuoteForKuestFok(
           scaled,
           siteWalletReady ? kuestBalance : Number.POSITIVE_INFINITY,
         )
@@ -498,7 +498,7 @@ export default function EventOrderPanelYesNoArbitrage({
 
         <div className="mb-2 flex items-center gap-3">
           <div className="shrink-0">
-            <label htmlFor="yes-no-arbitrage-amount" className="text-lg font-medium">{t('Amount')}</label>
+            <label htmlFor="outcome-arbitrage-amount" className="text-lg font-medium">{t('Amount')}</label>
             <div className="text-xs text-muted-foreground">
               {formatCurrency(minimumAmount)}
               {' '}
@@ -510,7 +510,7 @@ export default function EventOrderPanelYesNoArbitrage({
             </div>
           </div>
           <input
-            id="yes-no-arbitrage-amount"
+            id="outcome-arbitrage-amount"
             type="text"
             inputMode="decimal"
             value={`$${formatDisplayAmount(amountInputValue)}`}
