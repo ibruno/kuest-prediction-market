@@ -735,6 +735,16 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
       return (await response.json()) as MarketMakingCampaignsResponse
     },
   })
+  useEffect(() => {
+    const latestCampaigns = campaignsQuery.data?.data
+    if (!latestCampaigns) {
+      return
+    }
+    const latestById = new Map(latestCampaigns.map((campaign) => [campaign.id, campaign]))
+    setSelected((current) => (current ? (latestById.get(current.id) ?? null) : current))
+    setCancelCampaign((current) => (current ? (latestById.get(current.id) ?? null) : current))
+    setDisputeCampaign((current) => (current ? (latestById.get(current.id) ?? null) : current))
+  }, [campaignsQuery.data?.data])
   const pendingWithdrawalsQuery = useQuery({
     queryKey: ['market-making-pending-withdrawals', address?.toLowerCase()],
     enabled: Boolean(address && publicClient),

@@ -175,8 +175,8 @@ async function fetchPolymarketEvents(search: string, limit: number, minimumEnd: 
     endpoint.searchParams.set('events_status', 'active')
     endpoint.searchParams.set('keep_closed_markets', '0')
     // Search results are filtered locally for active markets and the minimum lead time.
-    // Fetch a larger result window so ineligible matches do not hide eligible ones.
-    endpoint.searchParams.set('limit_per_type', String(Math.min(Math.max(limit * 10, 100), 500)))
+    // Keep the over-fetch bounded so large Gamma market payloads stay within the response byte limit.
+    endpoint.searchParams.set('limit_per_type', String(Math.min(Math.max(limit * 2, 40), 60)))
     endpoint.searchParams.set('page', '1')
     endpoint.searchParams.set('search_profiles', 'false')
     endpoint.searchParams.set('search_tags', 'false')
