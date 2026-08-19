@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { isAddress } from 'viem'
 
@@ -93,7 +93,7 @@ function resolveImageUrl(value: string | null | undefined) {
   if (!normalized) {
     return null
   }
-  if (/^https?:\/\//i.test(normalized) || (normalized.startsWith('/') && !normalized.startsWith('//'))) {
+  if (/^https?:\/\//i.test(normalized)) {
     return normalized
   }
   return getPublicAssetUrl(normalized) || null
@@ -156,7 +156,7 @@ export async function GET() {
         })
         .from(markets)
         .innerJoin(events, eq(markets.event_id, events.id))
-        .where(inArray(markets.condition_id, conditionIds))
+        .where(inArray(sql<string>`LOWER(${markets.condition_id})`, conditionIds))
       for (const row of eventRows) {
         eventByCondition.set(row.conditionId.toLowerCase(), {
           title: row.eventTitle,

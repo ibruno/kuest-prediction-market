@@ -174,7 +174,9 @@ async function fetchPolymarketEvents(search: string, limit: number, minimumEnd: 
     endpoint.searchParams.set('q', search)
     endpoint.searchParams.set('events_status', 'active')
     endpoint.searchParams.set('keep_closed_markets', '0')
-    endpoint.searchParams.set('limit_per_type', String(Math.min(limit, 20)))
+    // Search results are filtered locally for active markets and the minimum lead time.
+    // Fetch a larger result window so ineligible matches do not hide eligible ones.
+    endpoint.searchParams.set('limit_per_type', String(Math.min(Math.max(limit * 10, 100), 500)))
     endpoint.searchParams.set('page', '1')
     endpoint.searchParams.set('search_profiles', 'false')
     endpoint.searchParams.set('search_tags', 'false')
@@ -302,7 +304,7 @@ async function listKuestEvents(search: string, excludedCreatorAddresses: string[
   return { eventRows, marketRows }
 }
 
-async function loadPolymarketMappings(conditionIds: string[]) {
+async function loadPolymarketMappings(conditionIds: string[], minimumEnd: Date) {
   if (conditionIds.length === 0) {
     return new Map<string, string>()
   }
@@ -313,7 +315,16 @@ async function loadPolymarketMappings(conditionIds: string[]) {
       polymarketConditionId: markets.polymarket_condition_id,
     })
     .from(markets)
-    .where(inArray(markets.polymarket_condition_id, conditionIds))
+    .innerJoin(events, eq(events.id, markets.event_id))
+    .where(
+      and(
+        inArray(markets.polymarket_condition_id, conditionIds),
+        eq(markets.is_active, true),
+        eq(markets.is_resolved, false),
+        eq(events.is_hidden, false),
+        gt(markets.end_time, minimumEnd),
+      ),
+    )
 
   return new Map(
     rows.flatMap((row) =>
@@ -419,16 +430,12 @@ export async function GET(request: NextRequest) {
     const polySyncerCreatorAddresses = [POLY_SYNCER_CREATOR_ADDRESS].map(normalizeAddress).filter(Boolean)
     const eligibility = await loadEligibilityWindows()
     const now = Date.now()
+    const kuestMinimumEnd = new Date(now + eligibility.kuestSeconds * 1_000)
 
     const shouldLoadKuest = source !== 'polymarket'
     const shouldLoadPolymarket = source === 'all' || source === 'polymarket'
     const kuestPromise = shouldLoadKuest
-      ? listKuestEvents(
-          search,
-          source === 'mine' ? polySyncerCreatorAddresses : [],
-          limit,
-          new Date(now + eligibility.kuestSeconds * 1_000),
-        )
+      ? listKuestEvents(search, source === 'mine' ? polySyncerCreatorAddresses : [], limit, kuestMinimumEnd)
       : Promise.resolve({ eventRows: [], marketRows: [] })
     const polymarketPromise = shouldLoadPolymarket
       ? fetchPolymarketEvents(search, limit, now + eligibility.polymarketSeconds * 1_000)
@@ -441,7 +448,7 @@ export async function GET(request: NextRequest) {
     const polymarketIds = polymarketEvents.flatMap((event) =>
       (event.markets ?? []).flatMap((market) => (market.conditionId ? [market.conditionId.trim().toLowerCase()] : [])),
     )
-    const mapping = await loadPolymarketMappings(polymarketIds)
+    const mapping = await loadPolymarketMappings(polymarketIds, kuestMinimumEnd)
 
     let clobMetrics = new Map<string, { liquidity: number; volume: number; volume24h: number }>()
     let volumeSource: MarketMakingDiscoveryResponse['volumeSource'] = 'database'

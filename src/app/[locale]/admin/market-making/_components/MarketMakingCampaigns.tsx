@@ -15,7 +15,7 @@ import {
   ShieldAlertIcon,
   XIcon,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatUnits, keccak256, stringToHex } from 'viem'
 import { usePublicClient, useWalletClient } from 'wagmi'
 
@@ -299,6 +299,13 @@ function remainingLabel(
   }
   if (status === ESCROW_CAMPAIGN_STATUS.disputed) {
     return copy.review
+  }
+  if (
+    status === ESCROW_CAMPAIGN_STATUS.cancelled ||
+    status === ESCROW_CAMPAIGN_STATUS.paid ||
+    status === ESCROW_CAMPAIGN_STATUS.resolved
+  ) {
+    return '—'
   }
   const target = status === ESCROW_CAMPAIGN_STATUS.review ? campaign.claimableAt : campaign.serviceEnd
   const seconds = Math.max(0, target - now)
@@ -711,10 +718,15 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
   const [disputeCampaign, setDisputeCampaign] = useState<MarketMakingCampaignRecord | null>(null)
   const [disputeReason, setDisputeReason] = useState<DisputeReason | null>(null)
   const [isMutating, setIsMutating] = useState(false)
-  const now = Math.floor(Date.now() / 1000)
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 30_000)
+    return () => window.clearInterval(interval)
+  }, [])
   const campaignsQuery = useQuery({
     queryKey: ['market-making-campaigns'],
     staleTime: 15_000,
+    refetchInterval: 30_000,
     queryFn: async () => {
       const response = await fetch('/admin/api/market-making/campaigns', { cache: 'no-store' })
       if (!response.ok) {
@@ -788,6 +800,10 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
       toast.error(copy.transactionFailed)
       return false
     }
+    if (!publicClient) {
+      toast.error(copy.transactionFailed)
+      return false
+    }
     setIsMutating(true)
     try {
       const args =
@@ -802,8 +818,8 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
         args,
         chain: walletClient.chain,
       })
-      const receipt = await publicClient?.waitForTransactionReceipt({ hash })
-      if (receipt && receipt.status !== 'success') {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      if (receipt.status !== 'success') {
         throw new Error(copy.transactionFailed)
       }
       await Promise.all([campaignsQuery.refetch(), pendingWithdrawalsQuery.refetch()])
@@ -831,6 +847,10 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
       toast.error(copy.transactionFailed)
       return
     }
+    if (!publicClient) {
+      toast.error(copy.transactionFailed)
+      return
+    }
     setIsMutating(true)
     try {
       const hash = await walletClient.writeContract({
@@ -840,8 +860,8 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
         functionName: 'withdraw',
         chain: walletClient.chain,
       })
-      const receipt = await publicClient?.waitForTransactionReceipt({ hash })
-      if (receipt && receipt.status !== 'success') {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      if (receipt.status !== 'success') {
         throw new Error(copy.transactionFailed)
       }
       await Promise.all([campaignsQuery.refetch(), pendingWithdrawalsQuery.refetch()])
