@@ -1,6 +1,8 @@
 'use client'
 
-import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
+import type { Address, Hex } from 'viem'
+
+import { useAppKit, useAppKitAccount, useAppKitNetwork, useAppKitProvider } from '@reown/appkit/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangleIcon,
@@ -19,7 +21,7 @@ import {
   XIcon,
 } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { createWalletClient, custom, erc20Abi } from 'viem'
+import { createWalletClient, custom, encodeFunctionData, erc20Abi } from 'viem'
 import { usePublicClient, useWalletClient } from 'wagmi'
 
 import type { MarketMakingCampaignsCopy } from '@/app/[locale]/admin/market-making/_components/MarketMakingCampaigns'
@@ -43,19 +45,20 @@ import { toast } from '@/components/ui/toast'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePublicRuntimeConfig } from '@/hooks/usePublicRuntimeConfig'
+import { useSignaturePromptRunner } from '@/hooks/useSignaturePromptRunner'
 import { COLLATERAL_TOKEN_ADDRESS, MARKET_MAKER_ESCROW_ADDRESS, POLY_SYNCER_CREATOR_ADDRESS } from '@/lib/contracts'
 import { MARKET_MAKER_ESCROW_ABI } from '@/lib/market-maker-escrow'
 import { cn } from '@/lib/utils'
 import { resolveViemNetworkByChainId } from '@/lib/viem-network'
 import { isRecoverableWalletConnectorError, isUserRejectedRequestError } from '@/lib/wallet'
-
-interface RpcWalletProvider {
-  request: (args: { method: string; params?: unknown[] | object }) => Promise<unknown>
-}
-
-function isRpcWalletProvider(value: unknown): value is RpcWalletProvider {
-  return Boolean(value) && typeof value === 'object' && typeof (value as { request?: unknown }).request === 'function'
-}
+import {
+  buildRpcWalletTransactionRequest,
+  isEmbeddedWalletProvider,
+  isRpcWalletProvider,
+  readWalletTransactionHash,
+  resolveWalletChainId,
+  type RpcWalletProvider,
+} from '@/lib/wallet/eoa-transaction'
 
 interface MarketMakingCopy {
   eyebrow: string
@@ -109,6 +112,8 @@ interface MarketMakingCopy {
   retry: string
   walletNotReady: string
   transactionFailed: string
+  approveUsdc: string
+  transactionPrompt: string
   marketClosesTooSoon: string
   marketDataUnavailable: string
   close: string
@@ -820,13 +825,20 @@ function CampaignDialog({
 }) {
   const isMobile = useIsMobile()
   const { open: openAppKit } = useAppKit()
-  const { address, isConnected } = useAppKitAccount()
-  const { walletProvider } = useAppKitProvider<RpcWalletProvider>('eip155')
+  const appKitAccount = useAppKitAccount()
+  const { address, isConnected } = appKitAccount
+  const { walletProvider, walletProviderType } = useAppKitProvider<RpcWalletProvider>('eip155')
+  const { chainId: appKitChainId, switchNetwork } = useAppKitNetwork()
   const { chainId, escrowUrl } = usePublicRuntimeConfig()
   const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient({ chainId })
   const queryClient = useQueryClient()
+  const { runWithSignaturePrompt } = useSignaturePromptRunner()
   const escrowBaseUrl = escrowUrl.replace(/\/+$/, '')
+  const isEmbeddedWallet =
+    Boolean(appKitAccount.embeddedWalletInfo) ||
+    walletProviderType === 'AUTH' ||
+    isEmbeddedWalletProvider(walletProvider)
   const transactionWalletClient = useMemo(() => {
     if (!address) {
       return null
@@ -844,6 +856,68 @@ function CampaignDialog({
       transport: custom(walletProvider),
     })
   }, [address, chainId, walletClient, walletProvider])
+
+  async function ensureWalletNetwork() {
+    if (!transactionWalletClient) {
+      throw new Error(copy.walletNotReady)
+    }
+    const chain = resolveViemNetworkByChainId(chainId)
+    if (!chain) {
+      throw new Error(copy.walletNotReady)
+    }
+    const selectedChainId = resolveWalletChainId(appKitChainId)
+    if (selectedChainId !== null && selectedChainId !== chainId) {
+      await runWithSignaturePrompt(() => switchNetwork(chain), {
+        title: copy.funding,
+        description: copy.transactionPrompt,
+      })
+    }
+    if ((await transactionWalletClient.getChainId()) !== chainId) {
+      throw new Error(copy.walletNotReady)
+    }
+  }
+
+  async function sendSponsorTransaction(input: { to: Address; data: Hex; title: string }): Promise<Hex> {
+    if (!address || !transactionWalletClient || !publicClient) {
+      throw new Error(copy.walletNotReady)
+    }
+    await ensureWalletNetwork()
+    const account = address as Address
+    const prompt = { title: input.title, description: copy.transactionPrompt }
+
+    if (isEmbeddedWallet) {
+      if (!isRpcWalletProvider(walletProvider)) {
+        throw new Error(copy.walletNotReady)
+      }
+      let gas: bigint | undefined
+      try {
+        gas = ((await publicClient.estimateGas({ account, to: input.to, data: input.data, value: 0n })) * 12n) / 10n
+      } catch {
+        gas = undefined
+      }
+      const result = await runWithSignaturePrompt(
+        () =>
+          walletProvider.request({
+            method: 'eth_sendTransaction',
+            params: [buildRpcWalletTransactionRequest({ from: account, to: input.to, data: input.data, gas })],
+          }),
+        prompt,
+      )
+      return readWalletTransactionHash(result)
+    }
+
+    return runWithSignaturePrompt(
+      () =>
+        transactionWalletClient.sendTransaction({
+          account,
+          chain: transactionWalletClient.chain,
+          to: input.to,
+          data: input.data,
+          value: 0n,
+        }),
+      prompt,
+    )
+  }
   const marketEndDate = getMarketEndDate(item)
   const initialServiceEnd = marketEndDate
   const quoteConditionIds = useMemo(
@@ -1115,18 +1189,16 @@ function CampaignDialog({
           ) {
             throw new Error(copy.quoteUnavailable)
           }
-          if ((await transactionWalletClient.getChainId()) !== chainId) {
-            await transactionWalletClient.switchChain({ id: chainId })
-          }
           const paymentHash =
             pendingImportPaymentHash ??
-            (await transactionWalletClient.writeContract({
-              account: address as `0x${string}`,
-              address: activeImport.payment.tokenAddress as `0x${string}`,
-              abi: erc20Abi,
-              functionName: 'transfer',
-              args: [activeImport.payment.receiverAddress as `0x${string}`, BigInt(activeImport.payment.amountAtomic)],
-              chain: transactionWalletClient.chain,
+            (await sendSponsorTransaction({
+              to: activeImport.payment.tokenAddress as Address,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: 'transfer',
+                args: [activeImport.payment.receiverAddress as Address, BigInt(activeImport.payment.amountAtomic)],
+              }),
+              title: copy.importEvent,
             }))
           setPendingImportPaymentHash(paymentHash)
           if (importPaymentStorageKey) {
@@ -1196,13 +1268,6 @@ function CampaignDialog({
       }
       setIssuedQuote(issued)
 
-      if ((await transactionWalletClient.getChainId()) !== chainId) {
-        await transactionWalletClient.switchChain({ id: chainId })
-      }
-      if ((await transactionWalletClient.getChainId()) !== chainId) {
-        throw new Error(copy.quoteUnavailable)
-      }
-
       const sponsor = address as `0x${string}`
       const reward = BigInt(issued.quote.reward)
       const requiredAllowance = reward + (reward * BigInt(issued.quote.protocolFeeBps)) / 10_000n
@@ -1213,13 +1278,14 @@ function CampaignDialog({
         args: [sponsor, MARKET_MAKER_ESCROW_ADDRESS],
       })
       if (allowance < requiredAllowance) {
-        const approvalHash = await transactionWalletClient.writeContract({
-          account: sponsor,
-          address: COLLATERAL_TOKEN_ADDRESS,
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [MARKET_MAKER_ESCROW_ADDRESS, requiredAllowance],
-          chain: transactionWalletClient.chain,
+        const approvalHash = await sendSponsorTransaction({
+          to: COLLATERAL_TOKEN_ADDRESS,
+          data: encodeFunctionData({
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [MARKET_MAKER_ESCROW_ADDRESS, requiredAllowance],
+          }),
+          title: copy.approveUsdc,
         })
         const approvalReceipt = await publicClient.waitForTransactionReceipt({ hash: approvalHash })
         if (approvalReceipt.status !== 'success') {
@@ -1228,29 +1294,31 @@ function CampaignDialog({
       }
 
       const quote = issued.quote
-      const campaignHash = await transactionWalletClient.writeContract({
-        account: sponsor,
-        address: MARKET_MAKER_ESCROW_ADDRESS,
-        abi: MARKET_MAKER_ESCROW_ABI,
-        functionName: 'createCampaign',
-        args: [
-          {
-            quoteId: quote.quoteId as `0x${string}`,
-            sponsor,
-            scopeHash: quote.scopeHash as `0x${string}`,
-            termsHash: quote.termsHash as `0x${string}`,
-            reward: BigInt(quote.reward),
-            bond: BigInt(quote.bond),
-            protocolFeeBps: quote.protocolFeeBps,
-            acceptDeadline: BigInt(quote.acceptDeadline),
-            serviceStart: BigInt(quote.serviceStart),
-            serviceEnd: BigInt(quote.serviceEnd),
-            claimableAt: BigInt(quote.claimableAt),
-            validUntil: BigInt(quote.validUntil),
-          },
-          issued.signature as `0x${string}`,
-        ],
-        chain: transactionWalletClient.chain,
+      const campaignArguments = [
+        {
+          quoteId: quote.quoteId as `0x${string}`,
+          sponsor,
+          scopeHash: quote.scopeHash as `0x${string}`,
+          termsHash: quote.termsHash as `0x${string}`,
+          reward: BigInt(quote.reward),
+          bond: BigInt(quote.bond),
+          protocolFeeBps: quote.protocolFeeBps,
+          acceptDeadline: BigInt(quote.acceptDeadline),
+          serviceStart: BigInt(quote.serviceStart),
+          serviceEnd: BigInt(quote.serviceEnd),
+          claimableAt: BigInt(quote.claimableAt),
+          validUntil: BigInt(quote.validUntil),
+        },
+        issued.signature as `0x${string}`,
+      ] as const
+      const campaignHash = await sendSponsorTransaction({
+        to: MARKET_MAKER_ESCROW_ADDRESS,
+        data: encodeFunctionData({
+          abi: MARKET_MAKER_ESCROW_ABI,
+          functionName: 'createCampaign',
+          args: campaignArguments,
+        }),
+        title: copy.sponsor,
       })
       const campaignReceipt = await publicClient.waitForTransactionReceipt({ hash: campaignHash })
       if (campaignReceipt.status !== 'success') {

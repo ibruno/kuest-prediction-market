@@ -66,6 +66,8 @@ export default async function AdminMarketMakingPage() {
         retry: t('Retry'),
         walletNotReady: t('Wallet is not ready. Please try again.'),
         transactionFailed: t('The transaction could not be completed.'),
+        approveUsdc: t('Approve USDC spending'),
+        transactionPrompt: t('Open your wallet and approve the transaction to continue.'),
         marketClosesTooSoon: t('This market closes too soon for the minimum sponsorship period.'),
         marketDataUnavailable: t('Market data is temporarily unavailable. Please try again shortly.'),
         close: t('Close'),
