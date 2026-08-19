@@ -20,7 +20,7 @@ import { readResponseBodyWithLimit } from '@/lib/read-response-body-with-limit'
 import { getPublicAssetUrl } from '@/lib/storage'
 
 const REQUEST_TIMEOUT_MS = 6500
-const MAX_RESPONSE_BYTES = 3_000_000
+const MAX_RESPONSE_BYTES = 9_000_000
 const DEFAULT_LIMIT = 18
 const MAX_LIMIT = 30
 const DEFAULT_SERVICE_START_DELAY_SECONDS = 86_400

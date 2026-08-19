@@ -98,7 +98,6 @@ export interface MarketMakingCampaignsCopy {
   reviewExplanation: string
   claimableIn: string
   paymentFrozen: string
-  evidenceHash: string
   finalOutcome: string
   paidToMaker: string
   refundedToSponsor: string
@@ -398,7 +397,7 @@ function CampaignDetail({
   const isExpired =
     campaign.status === ESCROW_CAMPAIGN_STATUS.open &&
     campaign.marketMaker === ZERO_ADDRESS &&
-    now > campaign.acceptDeadline
+    now >= campaign.acceptDeadline
   const canDispute =
     (campaign.status === ESCROW_CAMPAIGN_STATUS.active || campaign.status === ESCROW_CAMPAIGN_STATUS.review) &&
     now >= campaign.serviceStart &&
@@ -420,6 +419,13 @@ function CampaignDetail({
   const totalPayment = reward + protocolFee
   const paidAmount = rewardToMaker + earnedProtocolFee
   const timelineSteps: CampaignTimelineStep[] = (() => {
+    if (isExpired) {
+      return [
+        { label: copy.created, timestamp: campaign.createdAt, reached: true, current: false },
+        { label: copy.open, timestamp: campaign.createdAt, reached: true, current: false },
+        { label: copy.expired, timestamp: campaign.acceptDeadline, reached: true, current: true },
+      ]
+    }
     if (campaign.status === ESCROW_CAMPAIGN_STATUS.cancelled) {
       return [
         { label: copy.created, timestamp: campaign.createdAt, reached: true, current: false },
@@ -552,9 +558,6 @@ function CampaignDetail({
               <div>
                 <div className="font-medium">{copy.paymentFrozen}</div>
                 {submittedReason && <div className="mt-2 text-sm">{submittedReason}</div>}
-                <div className="mt-2 text-xs break-all text-muted-foreground">
-                  {copy.evidenceHash}: {campaign.evidenceHash}
-                </div>
               </div>
             </div>
           </div>
@@ -907,7 +910,7 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
               const isExpired =
                 campaign.status === ESCROW_CAMPAIGN_STATUS.open &&
                 campaign.marketMaker === ZERO_ADDRESS &&
-                now > campaign.acceptDeadline
+                now >= campaign.acceptDeadline
               return (
                 <TableRow key={campaign.id} className="cursor-pointer" onClick={() => setSelected(campaign)}>
                   <TableCell className="max-w-64 whitespace-normal">

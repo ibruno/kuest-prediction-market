@@ -146,7 +146,6 @@ export default async function AdminMarketMakingPage() {
         reviewExplanation: t('The service period ended and the campaign is in its review window.'),
         claimableIn: t('Payment becomes claimable in {time}', { time: '__TIME__' }),
         paymentFrozen: t('Payment frozen while Kuest reviews this dispute.'),
-        evidenceHash: t('Evidence hash'),
         finalOutcome: t('Final outcome'),
         paidToMaker: t('Paid to market maker'),
         refundedToSponsor: t('Refunded to sponsor'),
@@ -179,7 +178,7 @@ export default async function AdminMarketMakingPage() {
         ),
         cancellationTitle: t('Cancellation'),
         cancellationDescription: t(
-          'You can cancel the sponsorship before a market maker accepts. Event import is separate: once deployment starts, its fee is non-refundable. A terminal import failure is marked for an operational refund. After acceptance, the campaign is locked.',
+          'You can cancel the sponsorship before a market maker accepts. Published campaigns expire after 23 hours if no market maker accepts them. Event import is separate: once deployment starts, its fee is non-refundable. A terminal import failure is marked for an operational refund. After acceptance, the campaign is locked.',
         ),
         disputesTitle: t('Disputes'),
         disputesDescription: t(
