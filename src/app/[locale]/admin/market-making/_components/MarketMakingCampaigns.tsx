@@ -4,6 +4,7 @@ import { useAppKit, useAppKitAccount } from '@reown/appkit/react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangleIcon,
+  ArrowDownToLineIcon,
   CheckCircle2Icon,
   ChevronRightIcon,
   CircleDollarSignIcon,
@@ -60,6 +61,7 @@ export interface MarketMakingCampaignsCopy {
   servicePeriod: string
   action: string
   view: string
+  closeAndRefund: string
   waiting: string
   noCampaigns: string
   noCampaignsDescription: string
@@ -75,6 +77,8 @@ export interface MarketMakingCampaignsCopy {
   created: string
   paid: string
   amountUnderReview: string
+  availableToClaim: string
+  claim: string
   expired: string
   waitingForMarketMaker: string
   cancelAndRefund: string
@@ -115,6 +119,7 @@ export interface MarketMakingCampaignsCopy {
   transactionFailed: string
   transactionConfirmed: string
   transactionRejected: string
+  refundReadyToWithdraw: string
   close: string
 }
 
@@ -760,6 +765,8 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
     { id: 'completed', label: copy.completed },
     { id: 'cancelled', label: copy.cancelled },
   ]
+  const pendingWithdrawalAtomic = pendingWithdrawalsQuery.data ?? '0'
+  const hasPendingWithdrawal = BigInt(pendingWithdrawalAtomic) > 0n
   const reasons: Array<{ id: DisputeReason; label: string }> = [
     { id: 'liquidity_unavailable', label: copy.liquidityUnavailable },
     { id: 'spread_exceeded', label: copy.spreadExceeded },
@@ -800,7 +807,7 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
         throw new Error(copy.transactionFailed)
       }
       await Promise.all([campaignsQuery.refetch(), pendingWithdrawalsQuery.refetch()])
-      toast.success(copy.transactionConfirmed)
+      toast.success(functionName === 'cancelCampaign' ? copy.refundReadyToWithdraw : copy.transactionConfirmed)
       return true
     } catch (error) {
       if (isUserRejectedRequestError(error)) {
@@ -853,7 +860,7 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
 
   return (
     <div className="mt-6">
-      <div className="flex items-center justify-end gap-2 border-b pb-4">
+      <div className="flex flex-col justify-between gap-3 border-b pb-4 sm:flex-row sm:items-center">
         <div className="relative w-full sm:w-80">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -863,18 +870,35 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
             className="pl-9"
           />
         </div>
-        <Select value={filter} onValueChange={(value) => value && setFilter(value as EscrowCampaignStatusFilter)}>
-          <SelectTrigger className="w-36 sm:w-44">
-            <SelectValue>{filters.find((item) => item.id === filter)?.label ?? copy.all}</SelectValue>
-          </SelectTrigger>
-          <SelectContent align="end">
-            {filters.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{copy.availableToClaim}:</span>
+            <span className="font-semibold">{formatUsdc(pendingWithdrawalAtomic, locale)}</span>
+            <Button
+              type="button"
+              size="sm"
+              className="gap-1"
+              disabled={!hasPendingWithdrawal || isMutating}
+              onClick={withdrawRefund}
+            >
+              {isMutating && <LoaderCircleIcon className="size-4 animate-spin" />}
+              {!isMutating && <ArrowDownToLineIcon className="size-4" />}
+              {copy.claim}
+            </Button>
+          </div>
+          <Select value={filter} onValueChange={(value) => value && setFilter(value as EscrowCampaignStatusFilter)}>
+            <SelectTrigger className="w-36 sm:w-44">
+              <SelectValue>{filters.find((item) => item.id === filter)?.label ?? copy.all}</SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {filters.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {campaignsQuery.isLoading && (
@@ -935,7 +959,7 @@ export default function MarketMakingCampaigns({ locale, copy }: Props) {
                   <TableCell>{remainingLabel(campaign, now, locale, copy)}</TableCell>
                   <TableCell className="text-right">
                     <Button type="button" variant="ghost" size="sm" className="gap-1">
-                      {copy.view}
+                      {isExpired ? copy.closeAndRefund : copy.view}
                       <ChevronRightIcon className="size-4" />
                     </Button>
                   </TableCell>

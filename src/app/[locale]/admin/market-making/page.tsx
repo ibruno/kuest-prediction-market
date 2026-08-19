@@ -106,6 +106,7 @@ export default async function AdminMarketMakingPage() {
         servicePeriod: t('Service period'),
         action: t('Action'),
         view: t('View'),
+        closeAndRefund: t('Close & refund'),
         waiting: t('Waiting'),
         noCampaigns: t('No campaigns found'),
         noCampaignsDescription: t('Your market making sponsorships will appear here.'),
@@ -121,6 +122,8 @@ export default async function AdminMarketMakingPage() {
         created: t('Created'),
         paid: t('Paid'),
         amountUnderReview: t('Amount under review'),
+        availableToClaim: t('Available to claim'),
+        claim: t('Claim'),
         expired: t('Expired'),
         waitingForMarketMaker: t('Waiting for market maker'),
         cancelAndRefund: t('Cancel and refund'),
@@ -167,6 +170,7 @@ export default async function AdminMarketMakingPage() {
         transactionFailed: t('The transaction could not be completed.'),
         transactionConfirmed: t('Transaction confirmed.'),
         transactionRejected: t('You rejected the transaction.'),
+        refundReadyToWithdraw: t('Refund ready to withdraw.'),
         close: t('Close'),
       }}
       howItWorksCopy={{
