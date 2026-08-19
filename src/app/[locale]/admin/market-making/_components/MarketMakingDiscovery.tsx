@@ -481,6 +481,9 @@ function MarketRow({
         className="group relative z-0 flex min-w-0 cursor-pointer items-center gap-3 rounded-lg outline-none before:pointer-events-none before:absolute before:-inset-x-3 before:inset-y-[-0.75rem] before:-z-10 before:rounded-lg before:bg-black/5 before:opacity-0 before:transition-opacity before:duration-200 before:content-[''] hover:before:opacity-100 focus-visible:ring-2 focus-visible:ring-ring sm:gap-4 dark:before:bg-white/5"
         onClick={() => onSelect(item)}
         onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) {
+            return
+          }
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
             onSelect(item)
@@ -1153,9 +1156,13 @@ function CampaignDialog({
           if (importStorageKey) {
             window.localStorage.removeItem(importStorageKey)
           }
+          if (importPaymentStorageKey) {
+            window.localStorage.removeItem(importPaymentStorageKey)
+          }
           activeImport = null
           setImportId(null)
           setImportValue(null)
+          setPendingImportPaymentHash(null)
         }
         if (activeImport && !['ready', 'activated'].includes(activeImport.state)) {
           setImportOpen(true)

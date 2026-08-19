@@ -134,7 +134,7 @@ export default async function TermsOfUsePage({ params }: PageProps<'/[locale]/to
             jurisdiction in which such activity is prohibited ("Restricted Jurisdictions"). Without limiting the
             foregoing, use of Technology Features for trading is not permitted by persons or entities who reside in, are
             located in, are incorporated in, have a registered office in, or have their principal place of business in
-            in any jurisdiction where applicable law prohibits such use.
+            any jurisdiction where applicable law prohibits such use.
           </li>
         </ul>
         <p>
