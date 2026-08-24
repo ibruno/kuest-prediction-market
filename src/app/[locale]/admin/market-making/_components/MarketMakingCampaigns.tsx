@@ -528,6 +528,7 @@ function CampaignDetail({
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <StatusBadge status={effectiveStatus} copy={copy} expired={isExpired} />
+              <span className="font-mono">#{campaign.id}</span>
               {campaign.marketCount > 1 && (
                 <span>{replaceCount(copy.campaignNumber, campaign.marketCount, locale)}</span>
               )}
