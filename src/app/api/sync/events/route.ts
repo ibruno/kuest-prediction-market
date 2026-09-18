@@ -1329,8 +1329,6 @@ async function processEvent(
     const updatePayload: Record<string, any> = {}
     let eventChanged = false
     let listAffectingChange = false
-    const previousSeriesSlug = existingEvent.series_slug
-    const seriesSlugChanged = (existingEvent.series_slug ?? null) !== (eventSeriesSlug ?? null)
 
     const incomingEventIconReference = normalizeAssetReference(eventData.icon)
     const incomingEventStableIconReference = resolveStableAssetReference(eventData.icon)
